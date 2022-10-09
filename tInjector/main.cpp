@@ -197,6 +197,8 @@ int main()
 		{
 			tInjector::logln("Injection failed with error: %d", GetLastError());
 		}
+
+		CloseHandle(hRT);
 	}
 
 free:
