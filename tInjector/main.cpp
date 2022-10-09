@@ -49,6 +49,35 @@ namespace tInjector
 		0xC3
 	};
 
+	void log(const char c)
+	{
+		std::cout << c;
+	}
+
+	void log(const char* msg, ...)
+	{
+		va_list vaArgs;
+		va_start(vaArgs, msg);
+		const size_t size = std::vsnprintf(nullptr, 0, msg, vaArgs);
+		std::vector<char> str(size + 1);
+		std::vsnprintf(str.data(), str.size(), msg, vaArgs);
+		va_end(vaArgs);
+
+		std::cout << str.data();
+	}
+
+	void logln(const char* msg, ...)
+	{
+		va_list vaArgs;
+		va_start(vaArgs, msg);
+		const size_t size = std::vsnprintf(nullptr, 0, msg, vaArgs);
+		std::vector<char> str(size + 1);
+		std::vsnprintf(str.data(), str.size(), msg, vaArgs);
+		va_end(vaArgs);
+
+		std::cout << str.data() << std::endl;
+	}
+
 	DWORD GetProcessIdByName(const char* pName)
 	{
 		auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -177,35 +206,6 @@ namespace tInjector
 		CloseHandle(hProcess);
 
 		return (exitCode == 0) ? true : false;
-	}
-
-	void log(const char c)
-	{
-		std::cout << c;
-	}
-
-	void log(const char* msg, ...)
-	{
-		va_list vaArgs;
-		va_start(vaArgs, msg);
-		const size_t size = std::vsnprintf(nullptr, 0, msg, vaArgs);
-		std::vector<char> str(size + 1);
-		std::vsnprintf(str.data(), str.size(), msg, vaArgs);
-		va_end(vaArgs);
-
-		std::cout << str.data();
-	}
-
-	void logln(const char* msg, ...)
-	{
-		va_list vaArgs;
-		va_start(vaArgs, msg);
-		const size_t size = std::vsnprintf(nullptr, 0, msg, vaArgs);
-		std::vector<char> str(size + 1);
-		std::vsnprintf(str.data(), str.size(), msg, vaArgs);
-		va_end(vaArgs);
-
-		std::cout << str.data() << std::endl;
 	}
 }
 
