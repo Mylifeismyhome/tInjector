@@ -20,7 +20,7 @@ DWORD Shellcode(LPVOID param)
 	auto header = reinterpret_cast<PIMAGE_DOS_HEADER>(sc->pModuleAddress);
 	auto ntheader = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + header->e_lfanew);
 
-	// go through IAT of mapped module
+	// walk through IAT and load up it's required library & resolve it's process address
 	{
 		auto importsDirectory = ntheader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
 		auto importDescriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + importsDirectory.VirtualAddress);
