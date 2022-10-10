@@ -2,5 +2,19 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Remote_LoadLibrary.cpp">
+      <Filter>Method</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Method">
+      <UniqueIdentifier>{46a70f69-7cb8-404b-beaa-5e363fe4ab7e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Remote_LoadLibrary.h">
+      <Filter>Method</Filter>
+    </ClInclude>
+    <ClInclude Include="main.h" />
   </ItemGroup>
 </Project>
