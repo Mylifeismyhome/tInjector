@@ -8,9 +8,6 @@
     <ClCompile Include="ManualMapping.cpp">
       <Filter>Method</Filter>
     </ClCompile>
-    <ClCompile Include="ThreadHijacking.cpp">
-      <Filter>Method</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Method">
@@ -23,9 +20,6 @@
     </ClInclude>
     <ClInclude Include="main.h" />
     <ClInclude Include="ManualMapping.h">
-      <Filter>Method</Filter>
-    </ClInclude>
-    <ClInclude Include="ThreadHijacking.h">
       <Filter>Method</Filter>
     </ClInclude>
   </ItemGroup>

@@ -23,11 +23,11 @@ int main()
 	switch (std::atoi(Method.data()))
 	{
 	case 1:
-		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str());
+		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), tInjector::InjectionMethod::CreateRemoteThread);
 		break;
 
 	case 2:
-		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str());
+		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), tInjector::InjectionMethod::CreateRemoteThread);
 		break;
 
 	default:
