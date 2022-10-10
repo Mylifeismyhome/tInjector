@@ -5,6 +5,6 @@ namespace tInjector
 {
 	namespace method
 	{
-		bool RemoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath);
+		bool RemoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method);
 	}
 }

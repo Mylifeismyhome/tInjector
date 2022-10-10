@@ -43,7 +43,7 @@ static BYTE m_ShellCode[] = {
 };
 
 // Calling LoadLibraryA in target process using Shellcode
-bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath)
+bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
 {
 	LPVOID pTargetShellCodeParam = nullptr;
 	LPVOID pTargetShellcode = nullptr;

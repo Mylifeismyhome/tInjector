@@ -14,6 +14,12 @@ namespace tInjector
 		DWORD GetPEHeaderSize(const IMAGE_NT_HEADERS* pNTH);
 	}
 
+	enum class InjectionMethod
+	{
+		CreateRemoteThread = 0,
+		ThreadHijacking
+	};
+
 	void log(const char c);
 	void log(const char* msg, ...);
 	void logln(const char* msg, ...);

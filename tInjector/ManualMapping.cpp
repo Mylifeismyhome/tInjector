@@ -300,8 +300,16 @@ static BYTE m_Shellcode[] = {
         0xC3,
 };
 
-bool tInjector::method::ManualMapping(const char* TargetProcessName, const char* TargetModulePath)
+bool tInjector::method::ManualMapping(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
 {
+    LPVOID pMappedModule = nullptr;
+    LPVOID pShellCodeParam = nullptr;
+    LPVOID pShellcode = nullptr;
+    DWORD exitCode = 1;
+
+    PIMAGE_DOS_HEADER header = nullptr;
+    PIMAGE_NT_HEADERS ntheader = nullptr;
+
 	auto pid = tInjector::helper::GetProcessIdByName(TargetProcessName);
 	if (!pid)
 	{
@@ -338,15 +346,6 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 		// set ptr back to beginning of file
 		fseek(f, 0, SEEK_SET);
 	}
-
-	// need to declare them here because of goto
-	LPVOID pMappedModule = nullptr;
-	LPVOID pShellCodeParam = nullptr;
-	LPVOID pShellcode = nullptr;
-	DWORD exitCode = 1;
-
-	PIMAGE_DOS_HEADER header = nullptr;
-	PIMAGE_NT_HEADERS ntheader = nullptr;
 
 	// allocate space for module
 	BYTE* pModule = (BYTE*)malloc(fileSize * sizeof(BYTE) + 1);
@@ -485,5 +484,5 @@ free:
 
 	CloseHandle(hProcess);
 
-	return false;
+    return (exitCode == 0) ? true : false;
 }
