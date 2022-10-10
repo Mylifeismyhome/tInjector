@@ -8,15 +8,31 @@ int main()
 	tInjector::logln("Enter Processname:");
 
 	std::string TargetProcessName;
-//std::cin >> TargetProcessName;
+	std::cin >> TargetProcessName;
 
 	tInjector::logln("Enter target module path:");
 
 	std::string TargetModulePath;
-	//std::cin >> TargetModulePath;
+	std::cin >> TargetModulePath;
 
-	//tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str());
-	tInjector::method::ManualMapping("notepad.exe", "C:\\Users\\IdontNeedAName\\Desktop\\HellowDLL\\x64\\Release\\HellowDLL.dll");
+	tInjector::logln("Enter Method { 1 - Remote LoadLibraryA ; 2 - Manual Mapping }");
+
+	std::string Method;
+	std::cin >> Method;
+
+	switch (std::atoi(Method.data()))
+	{
+	case 1:
+		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str());
+		break;
+
+	case 2:
+		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str());
+		break;
+
+	default:
+		break;
+	}
 	
 	return 0;
 }
