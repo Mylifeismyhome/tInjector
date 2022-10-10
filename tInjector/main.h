@@ -11,6 +11,7 @@ namespace tInjector
 	namespace helper
 	{
 		DWORD GetProcessIdByName(const char* pName);
+		DWORD GetPEHeaderSize(const IMAGE_NT_HEADERS* pNTH);
 	}
 
 	void log(const char c);

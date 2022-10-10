@@ -1,20 +1,22 @@
 #include "main.h"
 
 #include "Remote_LoadLibrary.h"
+#include "Remote_ManualMapping.h"
 
 int main()
 {
 	tInjector::logln("Enter Processname:");
 
 	std::string TargetProcessName;
-	std::cin >> TargetProcessName;
+//std::cin >> TargetProcessName;
 
 	tInjector::logln("Enter target module path:");
 
 	std::string TargetModulePath;
-	std::cin >> TargetModulePath;
+	//std::cin >> TargetModulePath;
 
-	tInjector::method::Method_RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str());
+	//tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str());
+	tInjector::method::ManualMapping("notepad.exe", "C:\\Users\\IdontNeedAName\\Desktop\\HellowDLL\\x64\\Release\\HellowDLL.dll");
 	
 	return 0;
 }
@@ -71,4 +73,9 @@ DWORD tInjector::helper::GetProcessIdByName(const char* pName)
 	}
 
 	return 0;
+}
+
+DWORD tInjector::helper::GetPEHeaderSize(const IMAGE_NT_HEADERS* pNTH)
+{
+	return (offsetof(IMAGE_NT_HEADERS, OptionalHeader) + pNTH->FileHeader.SizeOfOptionalHeader + (pNTH->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER)));
 }
