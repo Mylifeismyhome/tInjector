@@ -435,7 +435,6 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 		if (!hRT)
 		{
 			tInjector::logln("CreateRemoteThread failed with code: %d", GetLastError());
-
 			goto free;
 		}
 

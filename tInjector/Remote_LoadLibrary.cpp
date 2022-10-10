@@ -73,14 +73,12 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 		if (!pTargetShellCodeParam)
 		{
 			tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
-
 			goto free;
 		}
 
 		if (!WriteProcessMemory(hProcess, pTargetShellCodeParam, &param, sizeof(ShellCode_t), nullptr))
 		{
 			tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
-
 			goto free;
 		}
 	}
@@ -91,41 +89,111 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 		if (!pTargetShellcode)
 		{
 			tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
-
 			goto free;
 		}
 
 		if (!WriteProcessMemory(hProcess, pTargetShellcode, m_ShellCode, tInjector_ARRLEN(m_ShellCode), NULL))
 		{
 			tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
-
 			goto free;
 		}
 	}
 
-	// Execute the Shellcode
+	switch (Method)
 	{
-		auto hRT = CreateRemoteThread(hProcess, nullptr, NULL, reinterpret_cast<LPTHREAD_START_ROUTINE>(pTargetShellcode), pTargetShellCodeParam, NULL, nullptr);
-		if (!hRT)
+	case InjectionMethod::CreateRemoteThread:
+	{
+		// Execute the Shellcode
 		{
-			tInjector::logln("CreateRemoteThread failed with code: %d", GetLastError());
+			auto hRT = CreateRemoteThread(hProcess, nullptr, NULL, reinterpret_cast<LPTHREAD_START_ROUTINE>(pTargetShellcode), pTargetShellCodeParam, NULL, nullptr);
+			if (!hRT)
+			{
+				tInjector::logln("CreateRemoteThread failed with code: %d", GetLastError());
+				goto free;
+			}
 
+			WaitForSingleObject(hRT, INFINITE);
+			GetExitCodeThread(hRT, &exitCode);
+
+			if (!exitCode)
+			{
+				tInjector::logln("Successfully injected module: %s", TargetModulePath);
+			}
+			else
+			{
+				tInjector::logln("Injection failed with error: %d", GetLastError());
+			}
+
+			CloseHandle(hRT);
+		}
+
+		break;
+	}
+
+	// not done yet
+	case InjectionMethod::ThreadHijacking:
+	{
+		auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, pid);
+		if (!hSnap) return 0;
+
+		PROCESSENTRY32 entry = { 0 };
+		entry.dwSize = sizeof(entry);
+
+		DWORD tid = 0; // thread process id
+		if (Process32First(hSnap, &entry))
+		{
+			do
+			{
+				// rn select the first one - change me
+				tid = entry.th32ProcessID;
+				if (tid == 0) continue;
+				break;
+
+			} while (Process32Next(hSnap, &entry));
+		}
+
+		auto hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, tid);
+		if (!hThread)
+		{
+			tInjector::logln("OpenThread failed with code: %d", GetLastError());
 			goto free;
 		}
 
-		WaitForSingleObject(hRT, INFINITE);
-		GetExitCodeThread(hRT, &exitCode);
-
-		if (!exitCode)
+		if (SuspendThread(hThread) == -1)
 		{
-			tInjector::logln("Successfully injected module: %s", TargetModulePath);
-		}
-		else
-		{
-			tInjector::logln("Injection failed with error: %d", GetLastError());
+			tInjector::logln("SuspendThread failed with code: %d", GetLastError());
+			CloseHandle(hThread);
+			goto free;
 		}
 
-		CloseHandle(hRT);
+		CONTEXT c;
+		c.ContextFlags = CONTEXT_ALL;
+		GetThreadContext(hThread, &c);
+
+		// todo: Eip for x32;
+		auto storedStartRoutine = c.Rip;
+		c.Rip = reinterpret_cast<DWORD64>(pTargetShellcode); // new starting routine
+
+		SetThreadContext(hThread, &c);
+	
+		if (ResumeThread(hThread) == -1)
+		{
+			c.Rip = storedStartRoutine; // restore starting routine, because ResumeThread failed and we do not want to crash the target process
+			SetThreadContext(hThread, &c);
+
+			tInjector::logln("ResumeThread failed with code: %d", GetLastError());
+			CloseHandle(hThread);
+			goto free;
+		}
+
+		CloseHandle(hThread);
+
+		break;
+	}
+
+	default:
+		tInjector::logln("Injection Method is invalid");
+		break;
 	}
 
 free:

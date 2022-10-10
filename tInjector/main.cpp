@@ -23,7 +23,7 @@ int main()
 	switch (std::atoi(Method.data()))
 	{
 	case 1:
-		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), tInjector::InjectionMethod::CreateRemoteThread);
+		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), tInjector::InjectionMethod::ThreadHijacking);
 		break;
 
 	case 2:
@@ -34,6 +34,7 @@ int main()
 		break;
 	}
 	
+	system("pause");
 	return 0;
 }
 
