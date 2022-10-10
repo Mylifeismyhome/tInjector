@@ -464,6 +464,25 @@ free:
 		pModule = 0;
 	}
 
+    // free up allocated memory
+    if (pMappedModule)
+    {
+        VirtualFreeEx(hProcess, pMappedModule, 0, MEM_RELEASE);
+        pMappedModule = nullptr;
+    }
+
+    if (pShellCodeParam)
+    {
+        VirtualFreeEx(hProcess, pShellCodeParam, 0, MEM_RELEASE);
+        pShellCodeParam = nullptr;
+    }
+
+    if (pShellcode)
+    {
+        VirtualFreeEx(hProcess, pShellcode, 0, MEM_RELEASE);
+        pShellcode = nullptr;
+    }
+
 	CloseHandle(hProcess);
 
 	return false;
