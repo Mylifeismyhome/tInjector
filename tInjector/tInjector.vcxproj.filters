@@ -5,7 +5,7 @@
     <ClCompile Include="Remote_LoadLibrary.cpp">
       <Filter>Method</Filter>
     </ClCompile>
-    <ClCompile Include="Remote_ManualMapping.cpp">
+    <ClCompile Include="ManualMapping.cpp">
       <Filter>Method</Filter>
     </ClCompile>
   </ItemGroup>
@@ -19,7 +19,7 @@
       <Filter>Method</Filter>
     </ClInclude>
     <ClInclude Include="main.h" />
-    <ClInclude Include="Remote_ManualMapping.h">
+    <ClInclude Include="ManualMapping.h">
       <Filter>Method</Filter>
     </ClInclude>
   </ItemGroup>

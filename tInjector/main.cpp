@@ -1,7 +1,7 @@
 #include "main.h"
 
 #include "Remote_LoadLibrary.h"
-#include "Remote_ManualMapping.h"
+#include "ManualMapping.h"
 
 int main()
 {

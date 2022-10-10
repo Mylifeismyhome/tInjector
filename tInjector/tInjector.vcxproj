@@ -155,12 +155,12 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Remote_LoadLibrary.cpp" />
-    <ClCompile Include="Remote_ManualMapping.cpp" />
+    <ClCompile Include="ManualMapping.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h" />
     <ClInclude Include="Remote_LoadLibrary.h" />
-    <ClInclude Include="Remote_ManualMapping.h" />
+    <ClInclude Include="ManualMapping.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
