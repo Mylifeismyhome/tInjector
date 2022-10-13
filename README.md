@@ -3,5 +3,5 @@
 
 Just another injector
 
-x64 [x]
-x32 []
+ - [x] x64
+ - [] x32
