@@ -4,4 +4,4 @@
 Just another injector
 
  - [x] x64
- - [] x32
+ - [ ] x32
