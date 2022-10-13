@@ -217,30 +217,12 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 			// copy the shellcode into the buffer
 			memcpy(pShellCodeThreadHijack, tInjector::hijack::GetShellcode(), tInjector::hijack::GetShellcodeSize());
 
+			// prepare the shellcode
 			{
-				for (auto ptr = reinterpret_cast<BYTE*>(pShellCodeThreadHijack); ptr < (reinterpret_cast<BYTE*>(pShellCodeThreadHijack) + tInjector::hijack::GetShellcodeSize()); ptr++)
-				{
-					DWORD64 address = *(DWORD64*)ptr;
-					if (address == 0xAAAAAAAAAAAAAAAA) // prepare the shellcode's parameter address
-					{
-						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(pTargetShellCodeParam);
-					}
-
-					if (address == 0xBBBBBBBBBBBBBBBB)  // prepare the shellcode's function address
-					{
-						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(pTargetShellcode);
-					}
-
-					if (address == 0xCCCCCCCCCCCCCCCC)  // prepare the shellcode's function address
-					{
-						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(pTargetRtlRestoreContextThreadHijack);
-					}
-
-					if (address == 0xDDDDDDDDDDDDDDDD)  // prepare the shellcode's function address
-					{
-						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(&RtlRestoreContext);
-					}
-				}
+				*reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x18) = reinterpret_cast<DWORD64>(pTargetShellCodeParam);
+				*reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x22) = reinterpret_cast<DWORD64>(pTargetShellcode);
+				*reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x2E) = reinterpret_cast<DWORD64>(pTargetRtlRestoreContextThreadHijack);
+				*reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<DWORD64>(&RtlRestoreContext);
 			}
 
 			if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::GetShellcodeSize(), nullptr))
