@@ -173,7 +173,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 			goto free;
 		}
 
-		CONTEXT c;
+		CONTEXT c = { 0 };
 		c.ContextFlags = CONTEXT_FULL;
 		if (!GetThreadContext(hThread, &c))
 		{
@@ -232,7 +232,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 			}
 		}
 
-		DWORD storedRip = c.Rip;
+		auto storedRip = c.Rip;
 		c.Rip = reinterpret_cast<DWORD64>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
 
 		if (!SetThreadContext(hThread, &c))

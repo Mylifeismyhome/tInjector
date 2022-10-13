@@ -5,9 +5,7 @@
 
 int main()
 {
-	tInjector::method::RemoteLoadLibrary("notepad.exe", R"(C:\Users\IdontNeedAName\Desktop\HellowDLL\x64\Release\HellowDLL.dll)", tInjector::InjectionMethod::ThreadHijacking);
-
-	/*tInjector::logln("Enter Processname:");
+	tInjector::logln("Enter Processname:");
 
 	std::string TargetProcessName;
 	std::cin >> TargetProcessName;
@@ -22,19 +20,26 @@ int main()
 	std::string Method;
 	std::cin >> Method;
 
+	tInjector::logln("Enter Injection-Method { 1 - CreateRemoteThread ; 2 - ThreadHijacking }");
+
+	std::string InjectionMethod;
+	std::cin >> InjectionMethod;
+
+	auto m_InjectionMethod = std::atoi(InjectionMethod.data()) - 1;
+
 	switch (std::atoi(Method.data()))
 	{
 	case 1:
-		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), tInjector::InjectionMethod::ThreadHijacking);
+		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(m_InjectionMethod));
 		break;
 
 	case 2:
-		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), tInjector::InjectionMethod::CreateRemoteThread);
+		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(m_InjectionMethod));
 		break;
 
 	default:
 		break;
-	}*/
+	}
 	
 	system("pause");
 	return 0;
