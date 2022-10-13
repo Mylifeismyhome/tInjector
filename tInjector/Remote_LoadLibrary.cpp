@@ -45,6 +45,9 @@ static BYTE m_ShellCode[] = {
 // Calling LoadLibraryA in target process using Shellcode
 bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
 {
+	LPVOID pShellCodeThreadHijack = nullptr;
+	LPVOID pTargetShellCodeThreadHijack = nullptr;
+	LPVOID pTargetRtlRestoreContextThreadHijack = nullptr;
 	LPVOID pTargetShellCodeParam = nullptr;
 	LPVOID pTargetShellcode = nullptr;
 	DWORD exitCode = 1;
@@ -130,32 +133,36 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 		break;
 	}
 
-	// not done yet
 	case InjectionMethod::ThreadHijacking:
 	{
-		auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, pid);
-		if (!hSnap) return 0;
+		auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+		if (!hSnap)
+		{
+			tInjector::logln("CreateToolhelp32Snapshot failed");
+			goto free;
+		}
 
-		PROCESSENTRY32 entry = { 0 };
+		THREADENTRY32 entry = { 0 };
 		entry.dwSize = sizeof(entry);
 
-		DWORD tid = 0; // thread process id
-		if (Process32First(hSnap, &entry))
+		HANDLE hThread = nullptr;
+		if (Thread32First(hSnap, &entry))
 		{
 			do
 			{
-				// rn select the first one - change me
-				tid = entry.th32ProcessID;
-				if (tid == 0) continue;
-				break;
-
-			} while (Process32Next(hSnap, &entry));
+				if (entry.th32OwnerProcessID == pid)
+				{
+					hThread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_SUSPEND_RESUME, FALSE, entry.th32ThreadID);
+					if (hThread) break;
+				}
+			} while (Thread32Next(hSnap, &entry));
 		}
 
-		auto hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, tid);
+		CloseHandle(hSnap);
+
 		if (!hThread)
 		{
-			tInjector::logln("OpenThread failed with code: %d", GetLastError());
+			tInjector::logln("No Thread found to hijack");
 			goto free;
 		}
 
@@ -167,25 +174,114 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 		}
 
 		CONTEXT c;
-		c.ContextFlags = CONTEXT_ALL;
-		GetThreadContext(hThread, &c);
+		c.ContextFlags = CONTEXT_FULL;
+		if (!GetThreadContext(hThread, &c))
+		{
+			tInjector::logln("GetThreadContext failed with code: %d", GetLastError());
+			CloseHandle(hThread);
+			goto free;
+		}
 
-		// todo: Eip for x32;
-		auto storedStartRoutine = c.Rip;
-		c.Rip = reinterpret_cast<DWORD64>(pTargetShellcode); // new starting routine
+		{
+			pTargetRtlRestoreContextThreadHijack = VirtualAllocEx(hProcess, nullptr, sizeof(CONTEXT), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			if (!pTargetRtlRestoreContextThreadHijack)
+			{
+				tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+				goto free;
+			}
 
-		SetThreadContext(hThread, &c);
+			if (!WriteProcessMemory(hProcess, pTargetRtlRestoreContextThreadHijack, &c, sizeof(CONTEXT), nullptr))
+			{
+				tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+				goto free;
+			}
+		}
+
+		// allocate & write shellcode to hijack the thread
+		{
+			pTargetShellCodeThreadHijack = VirtualAllocEx(hProcess, nullptr, tInjector::hijack::GetShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			if (!pTargetShellCodeThreadHijack)
+			{
+				tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+				goto free;
+			}
+
+			// set up the shellcode
+			pShellCodeThreadHijack = VirtualAlloc(nullptr, tInjector::hijack::GetShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+			if (!pShellCodeThreadHijack)
+			{
+				tInjector::logln("VirtualAlloc failed with code: %d", GetLastError());
+				goto free;
+			}
+
+			// copy the shellcode into the buffer
+			memcpy(pShellCodeThreadHijack, tInjector::hijack::GetShellcode(), tInjector::hijack::GetShellcodeSize());
+
+			{
+				for (auto ptr = reinterpret_cast<BYTE*>(pShellCodeThreadHijack); ptr < (reinterpret_cast<BYTE*>(pShellCodeThreadHijack) + tInjector::hijack::GetShellcodeSize()); ptr++)
+				{
+					DWORD64 address = *(DWORD64*)ptr;
+					if (address == 0xAAAAAAAAAAAAAAAA) // prepare the shellcode's parameter address
+					{
+						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(pTargetShellCodeParam);
+					}
+
+					if (address == 0xBBBBBBBBBBBBBBBB)  // prepare the shellcode's function address
+					{
+						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(pTargetShellcode);
+					}
+
+					if (address == 0xCCCCCCCCCCCCCCCC)  // prepare the shellcode's function address
+					{
+						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(pTargetRtlRestoreContextThreadHijack);
+					}
+
+					if (address == 0xDDDDDDDDDDDDDDDD)  // prepare the shellcode's function address
+					{
+						*reinterpret_cast<DWORD64*>(ptr) = reinterpret_cast<DWORD64>(&RtlRestoreContext);
+					}
+				}
+			}
+
+			if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::GetShellcodeSize(), nullptr))
+			{
+				tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+				goto free;
+			}
+		}
+
+		DWORD storedRip = c.Rip;
+		c.Rip = reinterpret_cast<DWORD64>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
+
+		if (!SetThreadContext(hThread, &c))
+		{
+			tInjector::logln("SetThreadContext failed with code: %d", GetLastError());
+
+			if (ResumeThread(hThread) == -1)
+			{
+				tInjector::logln("ResumeThread failed with code: %d", GetLastError());
+			}
+
+			CloseHandle(hThread);
+			goto free;
+		}
 	
 		if (ResumeThread(hThread) == -1)
 		{
-			c.Rip = storedStartRoutine; // restore starting routine, because ResumeThread failed and we do not want to crash the target process
-			SetThreadContext(hThread, &c);
+			c.Rip = storedRip; // restore previous rip
+			if (!SetThreadContext(hThread, &c))
+			{
+				tInjector::logln("SetThreadContext failed with code: %d", GetLastError());
+				CloseHandle(hThread);
+				goto free;
+			}
 
 			tInjector::logln("ResumeThread failed with code: %d", GetLastError());
 			CloseHandle(hThread);
 			goto free;
 		}
 
+		Sleep(10000); // todo: optimize me
 		CloseHandle(hThread);
 
 		break;
@@ -198,6 +294,24 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 
 free:
 	// free up allocated memory
+	if (pShellCodeThreadHijack)
+	{
+		VirtualFree(pShellCodeThreadHijack, 0, MEM_RELEASE);
+		pShellCodeThreadHijack = nullptr;
+	}
+
+	if (pTargetRtlRestoreContextThreadHijack)
+	{
+		VirtualFree(pTargetRtlRestoreContextThreadHijack, 0, MEM_RELEASE);
+		pTargetRtlRestoreContextThreadHijack = nullptr;
+	}
+
+	if (pTargetShellCodeThreadHijack)
+	{
+		VirtualFreeEx(hProcess, pTargetShellCodeThreadHijack, 0, MEM_RELEASE);
+		pTargetShellCodeThreadHijack = nullptr;
+	}
+
 	if (pTargetShellCodeParam)
 	{
 		VirtualFreeEx(hProcess, pTargetShellCodeParam, 0, MEM_RELEASE);

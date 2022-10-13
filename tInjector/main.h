@@ -20,6 +20,12 @@ namespace tInjector
 		ThreadHijacking
 	};
 
+	namespace hijack
+	{
+		BYTE* GetShellcode();
+		size_t GetShellcodeSize();
+	}
+
 	void log(const char c);
 	void log(const char* msg, ...);
 	void logln(const char* msg, ...);
