@@ -6,6 +6,12 @@
 #include <iostream>
 #include <vector>
 
+#ifdef _WIN64
+typedef DWORD64 tDWORD;
+#else
+typedef DWORD32 tDWORD;
+#endif
+
 namespace tInjector
 {
 	namespace helper

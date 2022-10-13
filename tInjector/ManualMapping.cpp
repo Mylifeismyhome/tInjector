@@ -1,13 +1,21 @@
 #include "ManualMapping.h"
 
+enum class EShellCodeRet
+{
+    SHELLCODE_UNKOWN = 0,
+    SHELLCODE_SUCCESS,
+    SHELLCODE_FAILED
+};
+
 struct ShellCode_t
 {
 	LPVOID pLoadLibraryA; // required to load additional libraries
 	LPVOID pGetProcAddress; // required to get it's process address to fix up iat
 	LPVOID pModuleAddress; // address of mapped module
+    EShellCodeRet ret;
 };
 
-/*DWORD Shellcode(LPVOID param)
+/*tDWORD ShellCode(LPVOID param)
 {
 	auto sc = (ShellCode_t*)param;
 
@@ -18,23 +26,23 @@ struct ShellCode_t
 	auto fncGetProcAddress = (tGetProcAddress)sc->pGetProcAddress;
 
 	auto header = reinterpret_cast<PIMAGE_DOS_HEADER>(sc->pModuleAddress);
-	auto ntheader = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + header->e_lfanew);
+	auto ntheader = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + header->e_lfanew);
 
 	// walk through IAT and load up it's required library & resolve it's process address
 	{
 		auto importsDirectory = ntheader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-		auto importDescriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + importsDirectory.VirtualAddress);
+		auto importDescriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + importsDirectory.VirtualAddress);
 
 		// iterate through each import
 		while (importDescriptor->Name != 0)
 		{
-			auto libName = reinterpret_cast<LPCSTR>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + importDescriptor->Name);
+			auto libName = reinterpret_cast<LPCSTR>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + importDescriptor->Name);
 
 			// load it's required module if not done yet
 			auto hModule = fncLoadLibraryA(libName);
 
-			ULONG_PTR* pThunkRef = reinterpret_cast<ULONG_PTR*>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + importDescriptor->OriginalFirstThunk);
-			ULONG_PTR* pFuncRef = reinterpret_cast<ULONG_PTR*>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + importDescriptor->FirstThunk);
+			ULONG_PTR* pThunkRef = reinterpret_cast<ULONG_PTR*>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + importDescriptor->OriginalFirstThunk);
+			ULONG_PTR* pFuncRef = reinterpret_cast<ULONG_PTR*>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + importDescriptor->FirstThunk);
 
 			if (!pThunkRef)
 			{
@@ -49,7 +57,7 @@ struct ShellCode_t
 				}
 				else
 				{
-					auto* pImport = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + (*pThunkRef));
+					auto* pImport = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + (*pThunkRef));
 					*pFuncRef = (ULONG_PTR)fncGetProcAddress(hModule, pImport->Name);
 				}
 			}
@@ -59,18 +67,21 @@ struct ShellCode_t
 	}
 
 	// call entry point
-	typedef BOOL(WINAPI* tDllMain)(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);
-	auto ep = reinterpret_cast<tDllMain>(reinterpret_cast<DWORD64>(sc->pModuleAddress) + ntheader->OptionalHeader.AddressOfEntryPoint);
+	typedef BOOL(WINAPI* tDllMain)(HINSTANCE hinstDLL, tDWORD fdwReason, LPVOID lpvReserved);
+	auto ep = reinterpret_cast<tDllMain>(reinterpret_cast<tDWORD>(sc->pModuleAddress) + ntheader->OptionalHeader.AddressOfEntryPoint);
 	if (!ep(reinterpret_cast<HINSTANCE>(sc->pModuleAddress), DLL_PROCESS_ATTACH, nullptr))
 	{
+        sc->ret = EShellCodeRet::SHELLCODE_FAILED;
 		return 1;
 	}
 
+    sc->ret = EShellCodeRet::SHELLCODE_SUCCESS;
 	return 0;
 }*/
 
 // it's the above function
-static BYTE m_Shellcode[] = {
+static BYTE m_ShellCode[] =
+{
         0x48, 0x89, 0x4C, 0x24, 0x08,
         0x55,
         0x48, 0x81, 0xEC, 0xD0, 0x00, 0x00, 0x00,
@@ -178,122 +189,13 @@ static BYTE m_Shellcode[] = {
         0x48, 0x8B, 0x48, 0x10,
         0xFF, 0x55, 0x60,
         0x85, 0xC0,
-        0x75, 0x07,
+        0x75, 0x12,
+        0x48, 0x8B, 0x45, 0x00,
+        0xC7, 0x40, 0x18, 0x02, 0x00, 0x00, 0x00,
         0xB8, 0x01, 0x00, 0x00, 0x00,
-        0xEB, 0x02,
-        0x33, 0xC0,
-        0x48, 0x8D, 0xA5, 0xB0, 0x00, 0x00, 0x00,
-        0x5D,
-        0xC3,
-        0x55,
-        0x48, 0x81, 0xEC, 0xD0, 0x00, 0x00, 0x00,
-        0x48, 0x8D, 0x6C, 0x24, 0x20,
-        0x48, 0x8B, 0x85, 0xC0, 0x00, 0x00, 0x00,
-        0x48, 0x89, 0x45, 0x00,
+        0xEB, 0x0D,
         0x48, 0x8B, 0x45, 0x00,
-        0x48, 0x8B, 0x00,
-        0x48, 0x89, 0x45, 0x08,
-        0x48, 0x8B, 0x45, 0x00,
-        0x48, 0x8B, 0x40, 0x08,
-        0x48, 0x89, 0x45, 0x10,
-        0x48, 0x8B, 0x45, 0x00,
-        0x48, 0x8B, 0x40, 0x10,
-        0x48, 0x89, 0x45, 0x18,
-        0x48, 0x8B, 0x45, 0x18,
-        0x48, 0x63, 0x40, 0x3C,
-        0x48, 0x8B, 0x4D, 0x00,
-        0x48, 0x03, 0x41, 0x10,
-        0x48, 0x89, 0x45, 0x20,
-        0xB8, 0x08, 0x00, 0x00, 0x00,
-        0x48, 0x6B, 0xC0, 0x01,
-        0x48, 0x8B, 0x4D, 0x20,
-        0x48, 0x8B, 0x84, 0x01, 0x88, 0x00, 0x00, 0x00,
-        0x48, 0x89, 0x45, 0x28,
-        0x8B, 0x45, 0x28,
-        0x48, 0x8B, 0x4D, 0x00,
-        0x48, 0x03, 0x41, 0x10,
-        0x48, 0x89, 0x45, 0x30,
-        0x48, 0x8B, 0x45, 0x30,
-        0x83, 0x78, 0x0C, 0x00,
-        0x0F, 0x84, 0xF1, 0x00, 0x00, 0x00,
-        0x48, 0x8B, 0x45, 0x30,
-        0x8B, 0x40, 0x0C,
-        0x48, 0x8B, 0x4D, 0x00,
-        0x48, 0x03, 0x41, 0x10,
-        0x48, 0x89, 0x45, 0x38,
-        0x48, 0x8B, 0x4D, 0x38,
-        0xFF, 0x55, 0x08,
-        0x48, 0x89, 0x45, 0x40,
-        0x48, 0x8B, 0x45, 0x30,
-        0x8B, 0x00,
-        0x48, 0x8B, 0x4D, 0x00,
-        0x48, 0x03, 0x41, 0x10,
-        0x48, 0x89, 0x45, 0x48,
-        0x48, 0x8B, 0x45, 0x30,
-        0x8B, 0x40, 0x10,
-        0x48, 0x8B, 0x4D, 0x00,
-        0x48, 0x03, 0x41, 0x10,
-        0x48, 0x89, 0x45, 0x50,
-        0x48, 0x83, 0x7D, 0x48, 0x00,
-        0x75, 0x08,
-        0x48, 0x8B, 0x45, 0x50,
-        0x48, 0x89, 0x45, 0x48,
-        0xEB, 0x18,
-        0x48, 0x8B, 0x45, 0x48,
-        0x48, 0x83, 0xC0, 0x08,
-        0x48, 0x89, 0x45, 0x48,
-        0x48, 0x8B, 0x45, 0x50,
-        0x48, 0x83, 0xC0, 0x08,
-        0x48, 0x89, 0x45, 0x50,
-        0x48, 0x8B, 0x45, 0x48,
-        0x48, 0x83, 0x38, 0x00,
-        0x74, 0x6A,
-        0x48, 0x8B, 0x45, 0x48,
-        0x48, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80,
-        0x48, 0x8B, 0x00,
-        0x48, 0x23, 0xC1,
-        0x48, 0x85, 0xC0,
-        0x74, 0x20,
-        0x48, 0x8B, 0x45, 0x48,
-        0x48, 0x8B, 0x00,
-        0x48, 0x25, 0xFF, 0xFF, 0x00, 0x00,
-        0x48, 0x8B, 0xD0,
-        0x48, 0x8B, 0x4D, 0x40,
-        0xFF, 0x55, 0x10,
-        0x48, 0x8B, 0x4D, 0x50,
-        0x48, 0x89, 0x01,
-        0xEB, 0x2C,
-        0x48, 0x8B, 0x45, 0x00,
-        0x48, 0x8B, 0x40, 0x10,
-        0x48, 0x8B, 0x4D, 0x48,
-        0x48, 0x03, 0x01,
-        0x48, 0x89, 0x45, 0x58,
-        0x48, 0x8B, 0x45, 0x58,
-        0x48, 0x83, 0xC0, 0x02,
-        0x48, 0x8B, 0xD0,
-        0x48, 0x8B, 0x4D, 0x40,
-        0xFF, 0x55, 0x10,
-        0x48, 0x8B, 0x4D, 0x50,
-        0x48, 0x89, 0x01,
-        0xE9, 0x74, 0xFF, 0xFF, 0xFF,
-        0x48, 0x8B, 0x45, 0x30,
-        0x48, 0x83, 0xC0, 0x14,
-        0x48, 0x89, 0x45, 0x30,
-        0xE9, 0x01, 0xFF, 0xFF, 0xFF,
-        0x48, 0x8B, 0x45, 0x20,
-        0x8B, 0x40, 0x28,
-        0x48, 0x8B, 0x4D, 0x00,
-        0x48, 0x03, 0x41, 0x10,
-        0x48, 0x89, 0x45, 0x60,
-        0x45, 0x33, 0xC0,
-        0xBA, 0x01, 0x00, 0x00, 0x00,
-        0x48, 0x8B, 0x45, 0x00,
-        0x48, 0x8B, 0x48, 0x10,
-        0xFF, 0x55, 0x60,
-        0x85, 0xC0,
-        0x75, 0x07,
-        0xB8, 0x01, 0x00, 0x00, 0x00,
-        0xEB, 0x02,
+        0xC7, 0x40, 0x18, 0x01, 0x00, 0x00, 0x00,
         0x33, 0xC0,
         0x48, 0x8D, 0xA5, 0xB0, 0x00, 0x00, 0x00,
         0x5D,
@@ -306,8 +208,8 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
     LPVOID pShellCodeThreadHijack = nullptr;
     LPVOID pTargetShellCodeThreadHijack = nullptr;
     LPVOID pTargetRtlRestoreContextThreadHijack = nullptr;
-    LPVOID pShellCodeParam = nullptr;
-    LPVOID pShellcode = nullptr;
+    LPVOID pTargetShellCodeParam = nullptr;
+    LPVOID pTargetShellCode = nullptr;
     DWORD exitCode = 1;
 
     PIMAGE_DOS_HEADER header = nullptr;
@@ -362,7 +264,7 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 	pModule[fileSize] = 0;
 
 	header = reinterpret_cast<PIMAGE_DOS_HEADER>(pModule);
-	ntheader = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<DWORD64>(pModule) + header->e_lfanew);
+	ntheader = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<tDWORD>(pModule) + header->e_lfanew);
 
 	// Allocate & Write Module to target process
 	{
@@ -386,7 +288,7 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 		{
 			if (pSectionHeader->SizeOfRawData != 0)
 			{
-				if (!WriteProcessMemory(hProcess, reinterpret_cast<LPVOID>(reinterpret_cast<DWORD64>(pMappedModule) + pSectionHeader->VirtualAddress), pModule + pSectionHeader->PointerToRawData, pSectionHeader->SizeOfRawData, nullptr))
+				if (!WriteProcessMemory(hProcess, reinterpret_cast<LPVOID>(reinterpret_cast<tDWORD>(pMappedModule) + pSectionHeader->VirtualAddress), pModule + pSectionHeader->PointerToRawData, pSectionHeader->SizeOfRawData, nullptr))
 				{
 					tInjector::logln("WriteProcessMemory failed");
 					goto free;
@@ -402,14 +304,14 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 		param.pGetProcAddress = &GetProcAddress;
 		param.pModuleAddress = pMappedModule;
 
-		pShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-		if (!pShellCodeParam)
+        pTargetShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		if (!pTargetShellCodeParam)
 		{
 			tInjector::logln("VirtualAllocEx failed");
 			goto free;
 		}
 
-		if (!WriteProcessMemory(hProcess, pShellCodeParam, &param, sizeof(ShellCode_t), nullptr))
+		if (!WriteProcessMemory(hProcess, pTargetShellCodeParam, &param, sizeof(ShellCode_t), nullptr))
 		{
 			tInjector::logln("WriteProcessMemory failed");
 			goto free;
@@ -418,14 +320,14 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 
 	// Allocate & Write Shellcode
 	{
-		pShellcode = VirtualAllocEx(hProcess, nullptr, tInjector_ARRLEN(m_Shellcode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-		if (!pShellcode)
+        pTargetShellCode = VirtualAllocEx(hProcess, nullptr, tInjector_ARRLEN(m_ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		if (!pTargetShellCode)
 		{
 			tInjector::logln("VirtualAllocEx failed");
 			goto free;
 		}
 
-		if (!WriteProcessMemory(hProcess, pShellcode, m_Shellcode, tInjector_ARRLEN(m_Shellcode), nullptr))
+		if (!WriteProcessMemory(hProcess, pTargetShellCode, m_ShellCode, tInjector_ARRLEN(m_ShellCode), nullptr))
 		{
 			tInjector::logln("WriteProcessMemory failed");
 			goto free;
@@ -438,7 +340,7 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
     {
         // Create remote thread to execute Shellcode
         {
-            auto hRT = CreateRemoteThread(hProcess, nullptr, NULL, reinterpret_cast<LPTHREAD_START_ROUTINE>(pShellcode), pShellCodeParam, NULL, nullptr);
+            auto hRT = CreateRemoteThread(hProcess, nullptr, NULL, reinterpret_cast<LPTHREAD_START_ROUTINE>(pTargetShellCode), pTargetShellCodeParam, NULL, nullptr);
             if (!hRT)
             {
                 tInjector::logln("CreateRemoteThread failed with code: %d", GetLastError());
@@ -450,7 +352,26 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 
             if (!exitCode)
             {
-                tInjector::logln("Successfully injected module: %s", TargetModulePath);
+                ShellCode_t sc = { 0 };
+                sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
+                while (sc.ret == EShellCodeRet::SHELLCODE_UNKOWN)
+                {
+                    if (ReadProcessMemory(hProcess, pTargetShellCodeParam, &sc, sizeof(ShellCode_t), nullptr))
+                    {
+                        if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
+                        {
+                            tInjector::logln("Successfully injected module: %s", TargetModulePath);
+                            break;
+                        }
+                        else if (sc.ret == EShellCodeRet::SHELLCODE_FAILED)
+                        {
+                            tInjector::logln("Injection failed with error: %d", GetLastError());
+                            break;
+                        }
+                    }
+
+                    Sleep(100);
+                }
             }
             else
             {
@@ -549,10 +470,10 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 
             // prepare the shellcode
             {
-                *reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x18) = reinterpret_cast<DWORD64>(pShellCodeParam);
-                *reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x22) = reinterpret_cast<DWORD64>(pShellcode);
-                *reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x2E) = reinterpret_cast<DWORD64>(pTargetRtlRestoreContextThreadHijack);
-                *reinterpret_cast<DWORD64*>(reinterpret_cast<DWORD64>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<DWORD64>(&RtlRestoreContext);
+                *reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x18) = reinterpret_cast<tDWORD>(pTargetShellCodeParam);
+                *reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x22) = reinterpret_cast<tDWORD>(pTargetShellCode);
+                *reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x2E) = reinterpret_cast<tDWORD>(pTargetRtlRestoreContextThreadHijack);
+                *reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<tDWORD>(&RtlRestoreContext);
             }
 
             if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::GetShellcodeSize(), nullptr))
@@ -562,8 +483,13 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
             }
         }
 
+#ifdef _WIN64
         auto storedRip = c.Rip;
-        c.Rip = reinterpret_cast<DWORD64>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
+        c.Rip = reinterpret_cast<tDWORD>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
+#else
+        auto storedEip = c.Eip;
+        c.Eip = reinterpret_cast<tDWORD>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
+#endif
 
         if (!SetThreadContext(hThread, &c))
         {
@@ -580,7 +506,12 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 
         if (ResumeThread(hThread) == -1)
         {
+#ifdef _WIN64
             c.Rip = storedRip; // restore previous rip
+#else
+            c.Eip = storedEip; // restore previous eip
+#endif
+
             if (!SetThreadContext(hThread, &c))
             {
                 tInjector::logln("SetThreadContext failed with code: %d", GetLastError());
@@ -593,7 +524,27 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
             goto free;
         }
 
-        Sleep(10000); // todo: optimize me
+        ShellCode_t sc = { 0 };
+        sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
+        while (sc.ret == EShellCodeRet::SHELLCODE_UNKOWN)
+        {
+            if (ReadProcessMemory(hProcess, pTargetShellCodeParam, &sc, sizeof(ShellCode_t), nullptr))
+            {
+                if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
+                {
+                    tInjector::logln("Successfully injected module: %s", TargetModulePath);
+                    break;
+                }
+                else if (sc.ret == EShellCodeRet::SHELLCODE_FAILED)
+                {
+                    tInjector::logln("Injection failed with error: %d", GetLastError());
+                    break;
+                }
+            }
+
+            Sleep(100);
+        }
+
         CloseHandle(hThread);
 
         break;
@@ -638,16 +589,16 @@ free:
         pMappedModule = nullptr;
     }
 
-    if (pShellCodeParam)
+    if (pTargetShellCodeParam)
     {
-        VirtualFreeEx(hProcess, pShellCodeParam, 0, MEM_RELEASE);
-        pShellCodeParam = nullptr;
+        VirtualFreeEx(hProcess, pTargetShellCodeParam, 0, MEM_RELEASE);
+        pTargetShellCodeParam = nullptr;
     }
 
-    if (pShellcode)
+    if (pTargetShellCode)
     {
-        VirtualFreeEx(hProcess, pShellcode, 0, MEM_RELEASE);
-        pShellcode = nullptr;
+        VirtualFreeEx(hProcess, pTargetShellCode, 0, MEM_RELEASE);
+        pTargetShellCode = nullptr;
     }
 
 	CloseHandle(hProcess);
