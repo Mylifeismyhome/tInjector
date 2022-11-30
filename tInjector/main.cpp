@@ -2,6 +2,28 @@
 
 #include "Remote_LoadLibrary.h"
 #include "ManualMapping.h"
+#include "SetWindowsHookEx.h"
+
+int GetInjectionMethodFromCMD()
+{
+	tInjector::logln("Enter Injection-Method { 1 - CreateRemoteThread ; 2 - ThreadHijacking }");
+
+	std::string InjectionMethod;
+	std::cin >> InjectionMethod;
+
+	auto m_InjectionMethod = std::atoi(InjectionMethod.data()) - 1;
+	return m_InjectionMethod;
+}
+
+std::string GetCustomEntryPointFromCMD()
+{
+	tInjector::logln("Enter name of custom entry point");
+
+	std::string CustomEntryPoint;
+	std::cin >> CustomEntryPoint;
+
+	return CustomEntryPoint;
+}
 
 int main()
 {
@@ -15,26 +37,23 @@ int main()
 	std::string TargetModulePath;
 	std::cin >> TargetModulePath;
 
-	tInjector::logln("Enter Method { 1 - Remote LoadLibraryA ; 2 - Manual Mapping }");
+	tInjector::logln("Enter Method { 1 - Remote LoadLibraryA ; 2 - Manual Mapping ; 3 - SetWindowsHookEx }");
 
 	std::string Method;
 	std::cin >> Method;
 
-	tInjector::logln("Enter Injection-Method { 1 - CreateRemoteThread ; 2 - ThreadHijacking }");
-
-	std::string InjectionMethod;
-	std::cin >> InjectionMethod;
-
-	auto m_InjectionMethod = std::atoi(InjectionMethod.data()) - 1;
-
 	switch (std::atoi(Method.data()))
 	{
 	case 1:
-		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(m_InjectionMethod));
+		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(GetInjectionMethodFromCMD()));
 		break;
 
 	case 2:
-		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(m_InjectionMethod));
+		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(GetInjectionMethodFromCMD()));
+		break;
+
+	case 3:
+		tInjector::method::SetWindowsHookEx(TargetProcessName.c_str(), TargetModulePath.c_str(), GetCustomEntryPointFromCMD().c_str());
 		break;
 
 	default:
