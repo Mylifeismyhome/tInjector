@@ -124,6 +124,12 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	}
 
 clean:
+	if (m_hModule
+		&& !FreeLibrary(m_hModule))
+	{
+		tInjector::logln("FreeLibrary failed with code: %d", GetLastError());
+	}
+
 	delete m_WindowsProc;
 	return false;
 }
