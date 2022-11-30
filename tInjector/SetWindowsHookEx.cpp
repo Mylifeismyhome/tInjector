@@ -59,14 +59,22 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 static bool m_EntryPointExecuted = false;
 VOID CALLBACK CSendMessageCallback(__in  HWND hwnd,
 	__in  UINT uMsg,
-	__in  ULONG_PTR dwData,  // This is *the* 0
-	__in  LRESULT lResult)   // The result from the callee
+	__in  ULONG_PTR dwData,
+	__in  LRESULT lResult)
 {
 	m_EntryPointExecuted = true;
 }
 
 bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName)
 {
+	/*
+	* to perform injection over SetWindowsHookEx
+	* we do require a valid HWND
+	* EnumWindows all windows
+	* get the executeable name by using GetModuleFileNameExA
+	* check if it matches TargetProcessName
+	* and if does then store the HWND for further use
+	*/
 	TWindowsProc* m_WindowsProc = new TWindowsProc();
 	m_WindowsProc->m_TargetProcessName = _strdup(TargetProcessName);
 	m_WindowsProc->valid = false;
@@ -83,6 +91,11 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 		goto clean;
 	}
 
+	/*
+	* first we do need to load the target module by using LoadLibraryExA
+	* with the dwflag of DONT_RESOLVE_DLL_REFERENCES
+	* DONT_RESOLVE_DLL_REFERENCES will load up the module but will not call the dllmain entry (or whatever the entrypoint is set to)
+	*/
 	m_hModule = LoadLibraryExA(TargetModulePath, NULL, DONT_RESOLVE_DLL_REFERENCES);
 	if (!m_hModule)
 	{
@@ -90,6 +103,11 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 		goto clean;
 	}
 
+	/*
+	* since we do not call the entry point automatically
+	* we will need to obtain an exported function from the module
+	* that we want to call and in our case we will use it as an entry point
+	*/
 	m_pMainEntry = (HOOKPROC)GetProcAddress(m_hModule, EntryPointName);
 	if (!m_pMainEntry)
 	{
@@ -97,6 +115,10 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 		goto clean;
 	}
 
+	/*
+	* now we simply call SetWindowsHookExA with any idHook, in our case WH_GETMESSAGE
+	* the function we do want to be called is our resolved entry point from our loaded module
+	*/
 	m_HHooked = SetWindowsHookExA(WH_GETMESSAGE, m_pMainEntry, m_hModule, m_WindowsProc->dwThreadId);
 	if (!m_HHooked)
 	{
@@ -104,20 +126,39 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 		goto clean;
 	}
 
+	/*
+	* SendMessageCallback to retrieve a callback when the event with idHook of WH_GETMESSAGE have been called
+	*/
 	SendMessageCallback(m_WindowsProc->hWnd, WH_GETMESSAGE, 0, 0, CSendMessageCallback, 0);
+
+	/*
+	* https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessage
+	* Sends the specified message to a window or windows. The SendMessage function calls the window procedure for the specified window and does not return until the window procedure has processed the message.
+	*/
 	SendMessage(m_WindowsProc->hWnd, WH_GETMESSAGE, NULL, NULL);
 
+	/*
+	* https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagea
+	* Places (posts) a message in the message queue associated with the thread that created the specified window and returns without waiting for the thread to process the message.
+	*/
 	if (!PostMessage(m_WindowsProc->hWnd, WM_NULL, NULL, NULL))
 	{
 		tInjector::logln("PostMessage failed with code: %d", GetLastError());
 		goto clean;
 	}
 
+	/*
+	* wait until the event have been called so on our callback was called
+	* in our callback we set 'm_EntryPointExecuted' to 'true'
+	*/
 	while (!m_EntryPointExecuted)
 	{
 		Sleep(1);
 	}
 
+	/*
+	* function was called so now do unhook it before it does get called again
+	*/
 	if (!UnhookWindowsHookEx(m_HHooked))
 	{
 		tInjector::logln("UnhookWindowsHookEx failed with code: %d", GetLastError());
