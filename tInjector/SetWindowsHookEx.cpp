@@ -86,7 +86,7 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	m_hModule = LoadLibraryExA(TargetModulePath, NULL, DONT_RESOLVE_DLL_REFERENCES);
 	if (!m_hModule)
 	{
-		tInjector::logln("LoadLibraryExA failed");
+		tInjector::logln("LoadLibraryExA failed with code: %d", GetLastError());
 		goto clean;
 	}
 
@@ -100,7 +100,7 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	m_HHooked = SetWindowsHookExA(WH_GETMESSAGE, m_pMainEntry, m_hModule, m_WindowsProc->dwThreadId);
 	if (!m_HHooked)
 	{
-		tInjector::logln("SetWindowsHookExA failed");
+		tInjector::logln("SetWindowsHookExA failed with code: %d", GetLastError());
 		goto clean;
 	}
 
@@ -109,7 +109,7 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 
 	if (!PostMessage(m_WindowsProc->hWnd, WM_NULL, NULL, NULL))
 	{
-		tInjector::logln("PostMessage failed");
+		tInjector::logln("PostMessage failed with code: %d", GetLastError());
 		goto clean;
 	}
 
@@ -120,7 +120,7 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 
 	if (!UnhookWindowsHookEx(m_HHooked))
 	{
-		tInjector::logln("UnhookWindowsHookEx failed");
+		tInjector::logln("UnhookWindowsHookEx failed with code: %d", GetLastError());
 	}
 
 clean:
