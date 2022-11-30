@@ -1,6 +1,26 @@
 #include "SetWindowsHookEx.h"
 #include <psapi.h>
 
+/*
+* as an example
+* in your module (dll)
+* just create a function and export it
+* like this
+* 
+*	static bool m_EntryPointExecuted = false;
+*	extern "C" __declspec(dllexport) void DllEntryPoint()
+*	{
+*		if (m_EntryPointExecuted)
+*			return;
+*
+*		m_EntryPointExecuted = true;
+*		MessageBoxA(nullptr, "HELLOW", "HELLE", MB_OK);
+*	}
+* 
+* now passing the parameter 'EntryPointName' in 'SetWindowsHookEx' as 'DllEntryPoint'
+* will get resolved by GetProcAddress function
+*/
+
 struct TWindowsProc
 {
 	char* m_TargetProcessName;
