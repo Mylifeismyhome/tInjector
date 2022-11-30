@@ -215,6 +215,9 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
     PIMAGE_DOS_HEADER header = nullptr;
     PIMAGE_NT_HEADERS ntheader = nullptr;
 
+    ShellCode_t sc = { 0 };
+    sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
+
 	auto pid = tInjector::helper::GetProcessIdByName(TargetProcessName);
 	if (!pid)
 	{
@@ -524,8 +527,6 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
             goto free;
         }
 
-        ShellCode_t sc = { 0 };
-        sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
         while (sc.ret == EShellCodeRet::SHELLCODE_UNKOWN)
         {
             if (ReadProcessMemory(hProcess, pTargetShellCodeParam, &sc, sizeof(ShellCode_t), nullptr))
@@ -583,10 +584,16 @@ free:
         pTargetShellCodeThreadHijack = nullptr;
     }
 
-    if (pMappedModule)
+    /*
+    * do not unload mapped module on successfully mapped
+    */
+    if (sc.ret != EShellCodeRet::SHELLCODE_SUCCESS)
     {
-        VirtualFreeEx(hProcess, pMappedModule, 0, MEM_RELEASE);
-        pMappedModule = nullptr;
+        if (pMappedModule)
+        {
+            VirtualFreeEx(hProcess, pMappedModule, 0, MEM_RELEASE);
+            pMappedModule = nullptr;
+        }
     }
 
     if (pTargetShellCodeParam)
