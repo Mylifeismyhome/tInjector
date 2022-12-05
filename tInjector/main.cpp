@@ -4,6 +4,29 @@
 #include "ManualMapping.h"
 #include "SetWindowsHookEx.h"
 
+unsigned GetOptionsFromCMD()
+{
+	tInjector::logln("Enter Option { 1 - no option ; 2 - erase pe header }");
+
+	std::string option;
+	std::cin >> option;
+
+	auto m_option = std::atoi(option.data()) - 1;
+
+	unsigned m_ret = 0;
+	switch (m_option)
+	{
+	case 1:
+		m_ret |= OPT_ERASE_PE_HEADER;
+		break;
+
+	default:
+		break;
+	}
+
+	return m_ret;
+}
+
 int GetInjectionMethodFromCMD()
 {
 	tInjector::logln("Enter Injection-Method { 1 - CreateRemoteThread ; 2 - ThreadHijacking }");
@@ -49,7 +72,7 @@ int main()
 		break;
 
 	case 2:
-		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(GetInjectionMethodFromCMD()));
+		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(GetInjectionMethodFromCMD()), GetOptionsFromCMD());
 		break;
 
 	case 3:
@@ -151,4 +174,15 @@ BYTE* tInjector::hijack::GetShellcode()
 size_t tInjector::hijack::GetShellcodeSize()
 {
 	return tInjector_ARRLEN(m_Shellcode_ThreadHijack);
+}
+
+bool tInjector::option::erase_pe_header(HANDLE m_hProcess, PVOID m_base, size_t m_pe_size)
+{
+	unsigned char m_zero = 0;
+	if (!WriteProcessMemory(m_hProcess, m_base, &m_zero, m_pe_size, nullptr))
+	{
+		return false;
+	}
+
+	return true;
 }

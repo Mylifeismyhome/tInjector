@@ -15,6 +15,6 @@ namespace tInjector
 {
 	namespace method
 	{
-		bool ManualMapping(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method);
+		bool ManualMapping(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method, unsigned m_opt = 0);
 	}
 }

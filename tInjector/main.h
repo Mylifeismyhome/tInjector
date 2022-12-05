@@ -12,6 +12,8 @@ typedef DWORD64 tDWORD;
 typedef DWORD32 tDWORD;
 #endif
 
+#define OPT_ERASE_PE_HEADER 1 << 1
+
 namespace tInjector
 {
 	namespace helper
@@ -30,6 +32,11 @@ namespace tInjector
 	{
 		BYTE* GetShellcode();
 		size_t GetShellcodeSize();
+	}
+
+	namespace option
+	{
+		bool erase_pe_header(HANDLE m_hProcess, PVOID m_base, size_t m_pe_size);
 	}
 
 	void log(const char c);

@@ -202,7 +202,7 @@ static BYTE m_ShellCode[] =
         0xC3,
 };
 
-bool tInjector::method::ManualMapping(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
+bool tInjector::method::ManualMapping(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method, unsigned m_opt)
 {
     LPVOID pMappedModule = nullptr;
     LPVOID pShellCodeThreadHijack = nullptr;
@@ -355,14 +355,18 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 
             if (!exitCode)
             {
-                ShellCode_t sc = { 0 };
-                sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
                 while (sc.ret == EShellCodeRet::SHELLCODE_UNKOWN)
                 {
                     if (ReadProcessMemory(hProcess, pTargetShellCodeParam, &sc, sizeof(ShellCode_t), nullptr))
                     {
                         if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
                         {
+                            if (m_opt & OPT_ERASE_PE_HEADER)
+                            {
+                                auto m_erase_pe_header = option::erase_pe_header(hProcess, pMappedModule, tInjector::helper::GetPEHeaderSize(ntheader));
+                                tInjector::logln(m_erase_pe_header ? "removed pe header" : "failed to remove pe header");
+                            }
+
                             tInjector::logln("Successfully injected module: %s", TargetModulePath);
                             break;
                         }
@@ -533,6 +537,12 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
             {
                 if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
                 {
+                    if (m_opt & OPT_ERASE_PE_HEADER)
+                    {
+                        auto m_erase_pe_header = option::erase_pe_header(hProcess, pMappedModule, tInjector::helper::GetPEHeaderSize(ntheader));
+                        tInjector::logln(m_erase_pe_header ? "removed pe header" : "failed to remove pe header");
+                    }
+
                     tInjector::logln("Successfully injected module: %s", TargetModulePath);
                     break;
                 }
