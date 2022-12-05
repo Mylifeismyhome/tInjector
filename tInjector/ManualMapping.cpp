@@ -307,7 +307,7 @@ bool tInjector::method::ManualMapping(const char* TargetProcessName, const char*
 		param.pGetProcAddress = &GetProcAddress;
 		param.pModuleAddress = pMappedModule;
 
-        pTargetShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        pTargetShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		if (!pTargetShellCodeParam)
 		{
 			tInjector::logln("VirtualAllocEx failed");
