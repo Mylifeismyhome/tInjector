@@ -7,8 +7,8 @@ Autor: Tobias Staack
 
 ---
 
-## RemoteLoadLibrary
+## Methods
 
-## ManualMapping
-
-## SetWindowsHookEx
+- RemoteLoadLibrary
+- ManualMapping
+- SetWindowsHookEx
