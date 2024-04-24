@@ -6,6 +6,6 @@ namespace tInjector
 {
 	namespace method
 	{
-		bool SetWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName);
+		bool setWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName);
 	}
 }

@@ -7,13 +7,13 @@
 * just create a function and export it
 * like this
 * 
-*	static bool m_EntryPointExecuted = false;
+*	static bool isEntryPointExecuted = false;
 *	extern "C" __declspec(dllexport) void DllEntryPoint()
 *	{
-*		if (m_EntryPointExecuted)
+*		if (isEntryPointExecuted)
 *			return;
 *
-*		m_EntryPointExecuted = true;
+*		isEntryPointExecuted = true;
 *		MessageBoxA(nullptr, "HELLOW", "HELLE", MB_OK);
 *	}
 * 
@@ -23,7 +23,7 @@
 
 struct TWindowsProc
 {
-	char* m_TargetProcessName;
+	char* targetProcessName;
 	DWORD dwThreadId, dwProcessId;
 	HINSTANCE hInstance;
 	HWND hWnd;
@@ -32,7 +32,7 @@ struct TWindowsProc
 
 BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 {
-	TWindowsProc* m_WindowsProc = (TWindowsProc*)lParam;
+	TWindowsProc* windowsProc = (TWindowsProc*)lParam;
 
 	// function that prints Windows and their handles
 	DWORD dwThreadId, dwProcessId;
@@ -53,22 +53,20 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 	// GetModuleFileNameEx uses psapi, which works for NT only!
 	if (GetModuleFileNameExA(hProcess, hInstance, modulefilename, sizeof(modulefilename)))
 	{
-		auto m_modName = std::string(modulefilename);
-		auto i = m_modName.find_last_of('\\');
+		auto modName = std::string(modulefilename);
+		auto i = modName.find_last_of('\\');
 		if (i != std::string::npos)
 		{
-			m_modName = m_modName.substr(i + 1, m_modName.size() - i - 1);
+			modName = modName.substr(i + 1, modName.size() - i - 1);
 		}
 
-		//tInjector::logln("Window: %s", m_modName.data());
-
-		if (!strcmp(m_modName.data(), m_WindowsProc->m_TargetProcessName))
+		if (!strcmp(modName.data(), windowsProc->targetProcessName))
 		{
-			m_WindowsProc->dwProcessId = dwProcessId;
-			m_WindowsProc->dwThreadId = dwThreadId;
-			m_WindowsProc->hInstance = hInstance;
-			m_WindowsProc->hWnd = hWnd;
-			m_WindowsProc->valid = true;
+			windowsProc->dwProcessId = dwProcessId;
+			windowsProc->dwThreadId = dwThreadId;
+			windowsProc->hInstance = hInstance;
+			windowsProc->hWnd = hWnd;
+			windowsProc->valid = true;
 		}
 	}
 
@@ -76,17 +74,25 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 	return TRUE;
 }
 
-static bool m_EntryPointExecuted = false;
-VOID CALLBACK CSendMessageCallback(__in  HWND hwnd,
+static bool isEntryPointExecuted = false;
+VOID CALLBACK SendMessageCallback(__in  HWND hwnd,
 	__in  UINT uMsg,
 	__in  ULONG_PTR dwData,
 	__in  LRESULT lResult)
 {
-	m_EntryPointExecuted = true;
+	isEntryPointExecuted = true;
 }
 
-bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName)
+bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName)
 {
+	char absolutePath[MAX_PATH] = { 0 };
+	strcpy_s(absolutePath, MAX_PATH, TargetModulePath);
+
+	if (!tInjector::helper::toAbsolutePath(absolutePath)) {
+		tInjector::logln("Failed to get absolute path");
+		return false;
+	}
+
 	/*
 	* to perform injection over SetWindowsHookEx
 	* we do require a valid HWND
@@ -95,17 +101,17 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	* check if it matches TargetProcessName
 	* and if does then store the HWND for further use
 	*/
-	TWindowsProc* m_WindowsProc = new TWindowsProc();
-	m_WindowsProc->m_TargetProcessName = _strdup(TargetProcessName);
-	m_WindowsProc->valid = false;
-	EnumWindows(EnumWindowsProc, (LPARAM)m_WindowsProc);
-	free(m_WindowsProc->m_TargetProcessName);
+	TWindowsProc* windowsProc = new TWindowsProc();
+	windowsProc->targetProcessName = _strdup(TargetProcessName);
+	windowsProc->valid = false;
+	EnumWindows(EnumWindowsProc, (LPARAM)windowsProc);
+	free(windowsProc->targetProcessName);
 
-	HMODULE m_hModule = nullptr;
-	HOOKPROC m_pMainEntry = nullptr;
-	HHOOK m_HHooked = nullptr;
+	HMODULE hModule = nullptr;
+	HOOKPROC pMainEntry = nullptr;
+	HHOOK hHooked = nullptr;
 
-	if (!m_WindowsProc->valid)
+	if (!windowsProc->valid)
 	{
 		tInjector::logln("EnumWindowsProc not found a window");
 		goto clean;
@@ -116,8 +122,8 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	* with the dwflag of DONT_RESOLVE_DLL_REFERENCES
 	* DONT_RESOLVE_DLL_REFERENCES will load up the module but will not call the dllmain entry (or whatever the entrypoint is set to)
 	*/
-	m_hModule = LoadLibraryExA(TargetModulePath, NULL, DONT_RESOLVE_DLL_REFERENCES);
-	if (!m_hModule)
+	hModule = LoadLibraryExA(absolutePath, NULL, DONT_RESOLVE_DLL_REFERENCES);
+	if (!hModule)
 	{
 		tInjector::logln("LoadLibraryExA failed with code: %d", GetLastError());
 		goto clean;
@@ -128,8 +134,8 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	* we will need to obtain an exported function from the module
 	* that we want to call and in our case we will use it as an entry point
 	*/
-	m_pMainEntry = (HOOKPROC)GetProcAddress(m_hModule, EntryPointName);
-	if (!m_pMainEntry)
+	pMainEntry = (HOOKPROC)GetProcAddress(hModule, EntryPointName);
+	if (!pMainEntry)
 	{
 		tInjector::logln("'%s' is not exported", EntryPointName);
 		goto clean;
@@ -139,8 +145,8 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	* now we simply call SetWindowsHookExA with any idHook, in our case WH_GETMESSAGE
 	* the function we do want to be called is our resolved entry point from our loaded module
 	*/
-	m_HHooked = SetWindowsHookExA(WH_GETMESSAGE, m_pMainEntry, m_hModule, m_WindowsProc->dwThreadId);
-	if (!m_HHooked)
+	hHooked = SetWindowsHookExA(WH_GETMESSAGE, pMainEntry, hModule, windowsProc->dwThreadId);
+	if (!hHooked)
 	{
 		tInjector::logln("SetWindowsHookExA failed with code: %d", GetLastError());
 		goto clean;
@@ -149,19 +155,19 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	/*
 	* SendMessageCallback to retrieve a callback when the event with idHook of WH_GETMESSAGE have been called
 	*/
-	SendMessageCallback(m_WindowsProc->hWnd, WH_GETMESSAGE, 0, 0, CSendMessageCallback, 0);
+	SendMessageCallback(windowsProc->hWnd, WH_GETMESSAGE, 0, 0, SendMessageCallback, 0);
 
 	/*
 	* https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessage
 	* Sends the specified message to a window or windows. The SendMessage function calls the window procedure for the specified window and does not return until the window procedure has processed the message.
 	*/
-	SendMessage(m_WindowsProc->hWnd, WH_GETMESSAGE, NULL, NULL);
+	SendMessage(windowsProc->hWnd, WH_GETMESSAGE, NULL, NULL);
 
 	/*
 	* https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagea
 	* Places (posts) a message in the message queue associated with the thread that created the specified window and returns without waiting for the thread to process the message.
 	*/
-	if (!PostMessage(m_WindowsProc->hWnd, WM_NULL, NULL, NULL))
+	if (!PostMessage(windowsProc->hWnd, WM_NULL, NULL, NULL))
 	{
 		tInjector::logln("PostMessage failed with code: %d", GetLastError());
 		goto clean;
@@ -169,9 +175,9 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 
 	/*
 	* wait until the event have been called so on our callback was called
-	* in our callback we set 'm_EntryPointExecuted' to 'true'
+	* in our callback we set 'isEntryPointExecuted' to 'true'
 	*/
-	while (!m_EntryPointExecuted)
+	while (!isEntryPointExecuted)
 	{
 		Sleep(1);
 	}
@@ -179,18 +185,17 @@ bool tInjector::method::SetWindowsHookEx(const char* TargetProcessName, const ch
 	/*
 	* function was called so now do unhook it before it does get called again
 	*/
-	if (!UnhookWindowsHookEx(m_HHooked))
+	if (!UnhookWindowsHookEx(hHooked))
 	{
 		tInjector::logln("UnhookWindowsHookEx failed with code: %d", GetLastError());
 	}
 
 clean:
-	if (m_hModule
-		&& !FreeLibrary(m_hModule))
+	if (hModule && !FreeLibrary(hModule))
 	{
 		tInjector::logln("FreeLibrary failed with code: %d", GetLastError());
 	}
 
-	delete m_WindowsProc;
+	delete windowsProc;
 	return false;
 }

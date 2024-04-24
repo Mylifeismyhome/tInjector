@@ -16,17 +16,18 @@ struct ShellCode_t
 
 /*tDWORD ShellCode(LPVOID param)
 {
-	auto sc = (ShellCode_t*)param;
+	ShellCode_t* sc = (ShellCode_t*)param;
 
 	typedef HMODULE(WINAPI* tLoadLibraryA)(LPCSTR lpLibFileName);
-	auto fnc = (tLoadLibraryA)sc->pLoadLibraryA;
-	auto ret = fnc(sc->path) ? 0 : 1;
+	tLoadLibraryA fnc = (tLoadLibraryA)sc->pLoadLibraryA;
+	int ret = fnc(sc->path) ? 0 : 1;
 	sc->ret = ret ? EShellCodeRet::SHELLCODE_FAILED : EShellCodeRet::SHELLCODE_SUCCESS;
+
 	return ret;
 }*/
 
 // it's the above function
-static BYTE m_ShellCode[] = 
+static BYTE ShellCode[] =
 {
 		0x48, 0x89, 0x4C, 0x24, 0x08,
 		0x55,
@@ -63,7 +64,7 @@ static BYTE m_ShellCode[] =
 };
 
 // Calling LoadLibraryA in target process using Shellcode
-bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
+bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
 {
 	LPVOID pShellCodeThreadHijack = nullptr;
 	LPVOID pTargetShellCodeThreadHijack = nullptr;
@@ -72,7 +73,15 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 	LPVOID pTargetShellCode = nullptr;
 	DWORD exitCode = 1;
 
-	auto pid = tInjector::helper::GetProcessIdByName(TargetProcessName);
+	char absolutePath[MAX_PATH] = { 0 };
+	strcpy_s(absolutePath, MAX_PATH, TargetModulePath);
+
+	if (!tInjector::helper::toAbsolutePath(absolutePath)) {
+		tInjector::logln("Failed to get absolute path");
+		return false;
+	}
+
+	auto pid = tInjector::helper::getProcessIdByName(TargetProcessName);
 	if (!pid)
 	{
 		tInjector::logln("Process not found");
@@ -90,7 +99,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 	{
 		ShellCode_t param = { 0 };
 		param.pLoadLibraryA = &LoadLibraryA; // use LoadLibraryA
-		strcpy_s(param.path, TargetModulePath);
+		strcpy_s(param.path, absolutePath);
 
 		pTargetShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		if (!pTargetShellCodeParam)
@@ -108,14 +117,14 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 
 	// Allocate & Write Shellcode
 	{
-		pTargetShellCode = VirtualAllocEx(hProcess, NULL, tInjector_ARRLEN(m_ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		pTargetShellCode = VirtualAllocEx(hProcess, NULL, tInjector_ARRLEN(ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if (!pTargetShellCode)
 		{
 			tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
 			goto free;
 		}
 
-		if (!WriteProcessMemory(hProcess, pTargetShellCode, m_ShellCode, tInjector_ARRLEN(m_ShellCode), NULL))
+		if (!WriteProcessMemory(hProcess, pTargetShellCode, ShellCode, tInjector_ARRLEN(ShellCode), NULL))
 		{
 			tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
 			goto free;
@@ -148,7 +157,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 					{
 						if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
 						{
-							tInjector::logln("Successfully injected module: %s", TargetModulePath);
+							tInjector::logln("Successfully injected module: %s", absolutePath);
 							break;
 						}
 						else if (sc.ret == EShellCodeRet::SHELLCODE_FAILED)
@@ -238,7 +247,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 
 		// allocate & write shellcode to hijack the thread
 		{
-			pTargetShellCodeThreadHijack = VirtualAllocEx(hProcess, nullptr, tInjector::hijack::GetShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			pTargetShellCodeThreadHijack = VirtualAllocEx(hProcess, nullptr, tInjector::hijack::getShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 			if (!pTargetShellCodeThreadHijack)
 			{
 				tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
@@ -246,7 +255,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 			}
 
 			// set up the shellcode
-			pShellCodeThreadHijack = VirtualAlloc(nullptr, tInjector::hijack::GetShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+			pShellCodeThreadHijack = VirtualAlloc(nullptr, tInjector::hijack::getShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 			if (!pShellCodeThreadHijack)
 			{
 				tInjector::logln("VirtualAlloc failed with code: %d", GetLastError());
@@ -254,7 +263,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 			}
 
 			// copy the shellcode into the buffer
-			memcpy(pShellCodeThreadHijack, tInjector::hijack::GetShellcode(), tInjector::hijack::GetShellcodeSize());
+			memcpy(pShellCodeThreadHijack, tInjector::hijack::getShellcode(), tInjector::hijack::getShellcodeSize());
 
 			// prepare the shellcode
 			{
@@ -264,7 +273,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<tDWORD>(&RtlRestoreContext);
 			}
 
-			if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::GetShellcodeSize(), nullptr))
+			if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::getShellcodeSize(), nullptr))
 			{
 				tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
 				goto free;
@@ -320,7 +329,7 @@ bool tInjector::method::RemoteLoadLibrary(const char* TargetProcessName, const c
 			{
 				if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
 				{
-					tInjector::logln("Successfully injected module: %s", TargetModulePath);
+					tInjector::logln("Successfully injected module: %s", absolutePath);
 					break;
 				}
 				else if (sc.ret == EShellCodeRet::SHELLCODE_FAILED)

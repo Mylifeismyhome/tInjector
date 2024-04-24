@@ -18,8 +18,9 @@ namespace tInjector
 {
 	namespace helper
 	{
-		DWORD GetProcessIdByName(const char* pName);
-		DWORD GetPEHeaderSize(const IMAGE_NT_HEADERS* pNTH);
+		DWORD getProcessIdByName(const char* pName);
+		DWORD getPEHeaderSize(const IMAGE_NT_HEADERS* pNTH);
+		bool toAbsolutePath(char* path);
 	}
 
 	enum class InjectionMethod
@@ -30,13 +31,13 @@ namespace tInjector
 
 	namespace hijack
 	{
-		BYTE* GetShellcode();
-		size_t GetShellcodeSize();
+		BYTE* getShellcode();
+		size_t getShellcodeSize();
 	}
 
 	namespace option
 	{
-		bool erase_pe_header(HANDLE m_hProcess, PVOID m_base, size_t m_pe_size);
+		bool erasePEHeader(HANDLE hProcess, PVOID base, size_t peSize);
 	}
 
 	void log(const char c);

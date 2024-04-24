@@ -4,41 +4,40 @@
 #include "ManualMapping.h"
 #include "SetWindowsHookEx.h"
 
-unsigned GetOptionsFromCMD()
+static unsigned getOptionsFromCMD()
 {
 	tInjector::logln("Enter Option { 1 - no option ; 2 - erase pe header }");
 
 	std::string option;
 	std::cin >> option;
 
-	auto m_option = std::atoi(option.data()) - 1;
+	auto iOption = std::atoi(option.data()) - 1;
 
-	unsigned m_ret = 0;
-	switch (m_option)
+	unsigned ret = 0;
+	switch (iOption)
 	{
 	case 1:
-		m_ret |= OPT_ERASE_PE_HEADER;
+		ret |= OPT_ERASE_PE_HEADER;
 		break;
 
 	default:
 		break;
 	}
 
-	return m_ret;
+	return ret;
 }
 
-int GetInjectionMethodFromCMD()
+static int getInjectionMethodFromCMD()
 {
 	tInjector::logln("Enter Injection-Method { 1 - CreateRemoteThread ; 2 - ThreadHijacking }");
 
-	std::string InjectionMethod;
-	std::cin >> InjectionMethod;
+	std::string injectionMethod;
+	std::cin >> injectionMethod;
 
-	auto m_InjectionMethod = std::atoi(InjectionMethod.data()) - 1;
-	return m_InjectionMethod;
+	return std::atoi(injectionMethod.data()) - 1;
 }
 
-std::string GetCustomEntryPointFromCMD()
+static std::string getCustomEntryPointFromCMD()
 {
 	tInjector::logln("Enter name of custom entry point");
 
@@ -68,15 +67,15 @@ int main()
 	switch (std::atoi(Method.data()))
 	{
 	case 1:
-		tInjector::method::RemoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(GetInjectionMethodFromCMD()));
+		tInjector::method::remoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(getInjectionMethodFromCMD()));
 		break;
 
 	case 2:
-		tInjector::method::ManualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(GetInjectionMethodFromCMD()), GetOptionsFromCMD());
+		tInjector::method::manualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(getInjectionMethodFromCMD()), getOptionsFromCMD());
 		break;
 
 	case 3:
-		tInjector::method::SetWindowsHookEx(TargetProcessName.c_str(), TargetModulePath.c_str(), GetCustomEntryPointFromCMD().c_str());
+		tInjector::method::setWindowsHookEx(TargetProcessName.c_str(), TargetModulePath.c_str(), getCustomEntryPointFromCMD().c_str());
 		break;
 
 	default:
@@ -116,7 +115,7 @@ void tInjector::logln(const char* msg, ...)
 	std::cout << str.data() << std::endl;
 }
 
-DWORD tInjector::helper::GetProcessIdByName(const char* pName)
+DWORD tInjector::helper::getProcessIdByName(const char* pName)
 {
 	auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (!hSnap) return 0;
@@ -143,13 +142,24 @@ DWORD tInjector::helper::GetProcessIdByName(const char* pName)
 	return 0;
 }
 
-DWORD tInjector::helper::GetPEHeaderSize(const IMAGE_NT_HEADERS* pNTH)
+DWORD tInjector::helper::getPEHeaderSize(const IMAGE_NT_HEADERS* pNTH)
 {
 	return (offsetof(IMAGE_NT_HEADERS, OptionalHeader) + pNTH->FileHeader.SizeOfOptionalHeader + (pNTH->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER)));
 }
 
+bool tInjector::helper::toAbsolutePath(char* path)
+{
+	char absolutePath[MAX_PATH] = { 0 };
+	if (!GetFullPathNameA(path, MAX_PATH, absolutePath, nullptr)) {
+		return false;
+	}
 
-static BYTE m_Shellcode_ThreadHijack[] =
+	strcpy_s(path, MAX_PATH, absolutePath);
+	return true;
+}
+
+
+static BYTE Shellcode_ThreadHijack[] =
 {
 	0x48, 0xB8, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,		// mov -16 to rax
 	0x48, 0x21, 0xC4,												// and rsp, rax
@@ -166,20 +176,20 @@ static BYTE m_Shellcode_ThreadHijack[] =
 	0xC																// ret
 };
 
-BYTE* tInjector::hijack::GetShellcode()
+BYTE* tInjector::hijack::getShellcode()
 {
-	return m_Shellcode_ThreadHijack;
+	return Shellcode_ThreadHijack;
 }
 
-size_t tInjector::hijack::GetShellcodeSize()
+size_t tInjector::hijack::getShellcodeSize()
 {
-	return tInjector_ARRLEN(m_Shellcode_ThreadHijack);
+	return tInjector_ARRLEN(Shellcode_ThreadHijack);
 }
 
-bool tInjector::option::erase_pe_header(HANDLE m_hProcess, PVOID m_base, size_t m_pe_size)
+bool tInjector::option::erasePEHeader(HANDLE hProcess, PVOID base, size_t peSize)
 {
-	unsigned char m_zero = 0;
-	if (!WriteProcessMemory(m_hProcess, m_base, &m_zero, m_pe_size, nullptr))
+	unsigned char zero = 0;
+	if (!WriteProcessMemory(hProcess, base, &zero, peSize, nullptr))
 	{
 		return false;
 	}
