@@ -75,7 +75,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 }
 
 static bool isEntryPointExecuted = false;
-VOID CALLBACK SendMessageCallback(__in  HWND hwnd,
+VOID CALLBACK CSendMessageCallback(__in  HWND hwnd,
 	__in  UINT uMsg,
 	__in  ULONG_PTR dwData,
 	__in  LRESULT lResult)
@@ -155,7 +155,7 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 	/*
 	* SendMessageCallback to retrieve a callback when the event with idHook of WH_GETMESSAGE have been called
 	*/
-	SendMessageCallback(windowsProc->hWnd, WH_GETMESSAGE, 0, 0, SendMessageCallback, 0);
+	SendMessageCallback(windowsProc->hWnd, WH_GETMESSAGE, 0, 0, CSendMessageCallback, 0);
 
 	/*
 	* https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessage
