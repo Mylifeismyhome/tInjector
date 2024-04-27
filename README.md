@@ -10,5 +10,11 @@ Autor: Tobias Staack
 ## Methods
 
 - RemoteLoadLibrary
+  - CreateRemoteThread
+  - ThreadHijacking
+
 - ManualMapping
+  - CreateRemoteThread
+  - ThreadHijacking
+    
 - SetWindowsHookEx
