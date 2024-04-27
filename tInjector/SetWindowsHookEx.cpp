@@ -37,7 +37,6 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 	// function that prints Windows and their handles
 	DWORD dwThreadId, dwProcessId;
 	HINSTANCE hInstance;
-	char title[255];
 	char modulefilename[255];
 	HANDLE hProcess;
 

@@ -27,6 +27,7 @@ struct ShellCode_t
 }*/
 
 // it's the above function
+#ifdef _WIN64
 static BYTE ShellCode[] =
 {
 		0x48, 0x89, 0x4C, 0x24, 0x08,
@@ -62,13 +63,52 @@ static BYTE ShellCode[] =
 		0x5D,
 		0xC3,
 };
+#else
+static BYTE ShellCode[] = {
+		0x55,
+		0x8B, 0xEC,
+		0x83, 0xEC, 0x14,
+		0x8B, 0x45, 0x08,
+		0x89, 0x45, 0xFC,
+		0x8B, 0x4D, 0xFC,
+		0x8B, 0x11,
+		0x89, 0x55, 0xEC,
+		0x8B, 0x45, 0xFC,
+		0x83, 0xC0, 0x04,
+		0x50,
+		0xFF, 0x55, 0xEC,
+		0x85, 0xC0,
+		0x74, 0x09,
+		0xC7, 0x45, 0xF8, 0x00, 0x00, 0x00, 0x00,
+		0xEB, 0x07,
+		0xC7, 0x45, 0xF8, 0x01, 0x00, 0x00, 0x00,
+		0x8B, 0x4D, 0xF8,
+		0x89, 0x4D, 0xF0,
+		0x83, 0x7D, 0xF0, 0x00,
+		0x74, 0x09,
+		0xC7, 0x45, 0xF4, 0x02, 0x00, 0x00, 0x00,
+		0xEB, 0x07,
+		0xC7, 0x45, 0xF4, 0x01, 0x00, 0x00, 0x00,
+		0x8B, 0x55, 0xFC,
+		0x8B, 0x45, 0xF4,
+		0x89, 0x82, 0x08, 0x01, 0x00, 0x00,
+		0x8B, 0x45, 0xF0,
+		0x8B, 0xE5,
+		0x5D,
+		0xC3,
+};
+#endif
 
 // Calling LoadLibraryA in target process using Shellcode
 bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
 {
 	LPVOID pShellCodeThreadHijack = nullptr;
 	LPVOID pTargetShellCodeThreadHijack = nullptr;
+
+#ifdef _WIN64
 	LPVOID pTargetRtlRestoreContextThreadHijack = nullptr;
+#endif
+
 	LPVOID pTargetShellCodeParam = nullptr;
 	LPVOID pTargetShellCode = nullptr;
 	DWORD exitCode = 1;
@@ -98,7 +138,7 @@ bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const c
 	// Allocate & Write Shellcode Param to Target Process Space
 	{
 		ShellCode_t param = { 0 };
-		param.pLoadLibraryA = &LoadLibraryA; // use LoadLibraryA
+		param.pLoadLibraryA = LoadLibraryA;
 		strcpy_s(param.path, absolutePath);
 
 		pTargetShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -230,6 +270,13 @@ bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const c
 			goto free;
 		}
 
+#ifdef _WIN64
+		auto storedRip = c.Rip;
+#else
+		auto storedEip = c.Eip;
+#endif
+
+#ifdef _WIN64
 		{
 			pTargetRtlRestoreContextThreadHijack = VirtualAllocEx(hProcess, nullptr, sizeof(CONTEXT), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 			if (!pTargetRtlRestoreContextThreadHijack)
@@ -244,6 +291,7 @@ bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const c
 				goto free;
 			}
 		}
+#endif
 
 		// allocate & write shellcode to hijack the thread
 		{
@@ -267,10 +315,16 @@ bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const c
 
 			// prepare the shellcode
 			{
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x18) = reinterpret_cast<tDWORD>(pTargetShellCodeParam);
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x22) = reinterpret_cast<tDWORD>(pTargetShellCode);
+#ifdef _WIN64
+				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x18) = reinterpret_cast<tDWORD>(pTargetShellCode);
+				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x22) = reinterpret_cast<tDWORD>(pTargetShellCodeParam);
 				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x2E) = reinterpret_cast<tDWORD>(pTargetRtlRestoreContextThreadHijack);
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<tDWORD>(&RtlRestoreContext);
+				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<tDWORD>(RtlRestoreContext);
+#else
+				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x6) = storedEip;
+				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0xF) = reinterpret_cast<tDWORD>(pTargetShellCode);
+				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x14) = reinterpret_cast<tDWORD>(pTargetShellCodeParam);
+#endif
 			}
 
 			if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::getShellcodeSize(), nullptr))
@@ -281,11 +335,9 @@ bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const c
 		}
 
 #ifdef _WIN64
-		auto storedRip = c.Rip;
-		c.Rip = reinterpret_cast<tDWORD>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
+		c.Rip = reinterpret_cast<tDWORD>(pTargetShellCodeThreadHijack);
 #else
-		auto storedEip = c.Eip;
-		c.Eip = reinterpret_cast<tDWORD>(pTargetShellCodeThreadHijack); // write payload to hijack the thread and call our required function and then jump back to previous execution
+		c.Eip = reinterpret_cast<DWORD>(pTargetShellCodeThreadHijack);
 #endif
 
 		if (!SetThreadContext(hThread, &c))
@@ -300,15 +352,15 @@ bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const c
 			CloseHandle(hThread);
 			goto free;
 		}
-	
+
 		if (ResumeThread(hThread) == -1)
 		{
-#ifdef _WIN64
-			c.Rip = storedRip; // restore previous rip
-#else
-			c.Eip = storedEip; // restore previous eip
-#endif
-
+			#ifdef _WIN64
+				c.Rip = storedRip;
+			#else
+				c.Eip = storedEip;
+			#endif
+			
 			if (!SetThreadContext(hThread, &c))
 			{
 				tInjector::logln("SetThreadContext failed with code: %d", GetLastError());
@@ -360,11 +412,13 @@ free:
 		pShellCodeThreadHijack = nullptr;
 	}
 
+#ifdef _WIN64
 	if (pTargetRtlRestoreContextThreadHijack)
 	{
 		VirtualFree(pTargetRtlRestoreContextThreadHijack, 0, MEM_RELEASE);
 		pTargetRtlRestoreContextThreadHijack = nullptr;
 	}
+#endif
 
 	if (pTargetShellCodeThreadHijack)
 	{

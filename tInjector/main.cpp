@@ -81,7 +81,7 @@ int main()
 	default:
 		break;
 	}
-	
+
 	system("pause");
 	return 0;
 }
@@ -115,12 +115,10 @@ void tInjector::logln(const char* msg, ...)
 	std::cout << str.data() << std::endl;
 }
 
-DWORD tInjector::helper::getProcessIdByName(const char* pName)
+static const char* getParentProcessName(DWORD th32ParentProcessID)
 {
 	auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (!hSnap) return 0;
-
-	size_t pNameLen = strlen(pName);
+	if (!hSnap) return "";
 
 	PROCESSENTRY32 entry = { 0 };
 	entry.dwSize = sizeof(entry);
@@ -129,8 +127,45 @@ DWORD tInjector::helper::getProcessIdByName(const char* pName)
 	{
 		do
 		{
-			if (!memcmp(pName, entry.szExeFile, pNameLen))
+			if (entry.th32ProcessID == th32ParentProcessID) {
+				CloseHandle(hSnap);
+				return entry.szExeFile;
+			}
+		} while (Process32Next(hSnap, &entry));
+	}
+
+	CloseHandle(hSnap);
+	return "";
+}
+
+DWORD tInjector::helper::getProcessIdByName(const char* processName)
+{
+	auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (!hSnap) return 0;
+
+	PROCESSENTRY32 entry = { 0 };
+	entry.dwSize = sizeof(entry);
+
+	if (Process32First(hSnap, &entry))
+	{
+		do
+		{
+			if (!_stricmp(processName, entry.szExeFile))
 			{
+				if (entry.th32ParentProcessID == 0) 
+				{
+					CloseHandle(hSnap);
+					return entry.th32ProcessID;
+				}
+
+				const char* parentProcessName = getParentProcessName(entry.th32ParentProcessID);
+				if (!_stricmp(parentProcessName, processName))
+				{
+					// keep iterating until we find the main process
+					continue;
+				}
+
+				// this is the main process
 				CloseHandle(hSnap);
 				return entry.th32ProcessID;
 			}
@@ -158,23 +193,52 @@ bool tInjector::helper::toAbsolutePath(char* path)
 	return true;
 }
 
-
+#ifdef _WIN64
 static BYTE Shellcode_ThreadHijack[] =
 {
+	// store stack
 	0x48, 0xB8, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,		// mov -16 to rax
 	0x48, 0x21, 0xC4,												// and rsp, rax
 	0x48, 0x83, 0xEC, 0x20,											// subtract 32 from rsp
 	0x48, 0x8b, 0xEC,												// mov rbp, rsp
+
+	// execute shellcode
 	0x90, 0x90,														// nop nop
-	0x48, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// mov rcx, pointer of shellcode params
 	0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// mov rax, pointer of shellcode function
+	0x48, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// mov rcx, pointer of shellcode params
 	0xFF, 0xD0,														// call rax
+
+	// restore stack
 	0x48, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// movabs rcx, pointer of thread context
 	0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		// movabs rax, address of RtlRestoreContext to restore it's previous state
 	0x48, 0x31, 0xd2,												// xor rdx, rdx
 	0xFF, 0xD0,														// call rax
 	0xC																// ret
 };
+#else
+static BYTE Shellcode_ThreadHijack[] =
+{
+	// create space for return value
+	0x83, 0xEC, 0x4,												// sub esp, 0x4
+	0xc7, 0x04, 0x24, 0x00, 0x00, 0x00, 0x00,						// push eip on stack
+
+	// store stack
+	0x60,															// pushad
+	0x9C,															// pushfd
+	0x89, 0xE5,														// mov ebp, esp
+
+	// execute shellcode
+	0xBB, 0x00, 0x00, 0x00, 0x00,									// mov ebx, pointer of shellcode function
+	0x68, 0x00, 0x00, 0x00, 0x00,									// push pointer of shellcode params
+	0xFF, 0xD3,														// call ebx
+
+	// restore stack
+	0x89, 0xEC,														// mov esp, ebp
+	0x9D,															// popfd
+	0x61,															// popad
+	0xC3															// ret
+};
+#endif
 
 BYTE* tInjector::hijack::getShellcode()
 {

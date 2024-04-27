@@ -3,8 +3,10 @@
 
 #include <Windows.h>
 #include <tlhelp32.h>
+
 #include <iostream>
 #include <vector>
+#include <string>
 
 #ifdef _WIN64
 typedef DWORD64 tDWORD;
