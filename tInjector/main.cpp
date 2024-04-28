@@ -1,12 +1,15 @@
 #include "main.h"
 
+#include "Memory.h"
+#include "Executor.h"
+
 #include "Remote_LoadLibrary.h"
 #include "ManualMapping.h"
 #include "SetWindowsHookEx.h"
 
 static unsigned getOptionsFromCMD()
 {
-	tInjector::logln("Enter Option { 1 - no option ; 2 - erase pe header }");
+	Injector::logln("choose additional option:\n\t1 - no option\n\t2 - erase pe header");
 
 	std::string option;
 	std::cin >> option;
@@ -29,7 +32,7 @@ static unsigned getOptionsFromCMD()
 
 static int getInjectionMethodFromCMD()
 {
-	tInjector::logln("Enter Injection-Method { 1 - CreateRemoteThread ; 2 - ThreadHijacking }");
+	Injector::logln("choose executor:\n\t1 - CreateRemoteThread\n\t2 - ThreadHijacking");
 
 	std::string injectionMethod;
 	std::cin >> injectionMethod;
@@ -39,59 +42,72 @@ static int getInjectionMethodFromCMD()
 
 static std::string getCustomEntryPointFromCMD()
 {
-	tInjector::logln("Enter name of custom entry point");
+	Injector::logln("enter custom entry point:");
 
-	std::string CustomEntryPoint;
-	std::cin >> CustomEntryPoint;
+	std::string customEntryPoint;
+	std::cin >> customEntryPoint;
 
-	return CustomEntryPoint;
+	return customEntryPoint;
 }
 
 int main()
 {
-	tInjector::logln("Enter Processname:");
+	Injector::logln("enter processName:");
 
-	std::string TargetProcessName;
-	std::cin >> TargetProcessName;
+	std::string targetProcessName;
+	std::cin >> targetProcessName;
 
-	tInjector::logln("Enter target module path:");
+	Injector::logln("enter module path:");
 
-	std::string TargetModulePath;
-	std::cin >> TargetModulePath;
+	std::string targetModulePath;
+	std::cin >> targetModulePath;
 
-	tInjector::logln("Enter Method { 1 - Remote LoadLibraryA ; 2 - Manual Mapping ; 3 - SetWindowsHookEx }");
+	Injector::logln("choose method:\n\t1 - Remote LoadLibraryA\n\t2 - Manual Mapping\n\t3 - SetWindowsHookEx");
 
-	std::string Method;
-	std::cin >> Method;
+	std::string method;
+	std::cin >> method;
 
-	switch (std::atoi(Method.data()))
-	{
-	case 1:
-		tInjector::method::remoteLoadLibrary(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(getInjectionMethodFromCMD()));
-		break;
+	INT32 iMethod = std::atoi(method.data());
 
-	case 2:
-		tInjector::method::manualMapping(TargetProcessName.c_str(), TargetModulePath.c_str(), static_cast<tInjector::InjectionMethod>(getInjectionMethodFromCMD()), getOptionsFromCMD());
-		break;
+	if (iMethod == 3) {
+		Injector::Method::setWindowsHookEx(targetProcessName.data(), targetModulePath.data(), getCustomEntryPointFromCMD().data());
+	}
+	else {
+		Injector::CWinApiMemory memory;
+		if (!memory.attach(targetProcessName.data())) {
+			Injector::logln("failed to attach to process (%d)", GetLastError());
+			return 0;
+		}
 
-	case 3:
-		tInjector::method::setWindowsHookEx(TargetProcessName.c_str(), TargetModulePath.c_str(), getCustomEntryPointFromCMD().c_str());
-		break;
+		switch (iMethod)
+		{
+		case 1:
+			Injector::Method::remoteLoadLibrary(&memory, targetModulePath.data(), static_cast<Injector::Executor::EMethod>(getInjectionMethodFromCMD()));
+			break;
 
-	default:
-		break;
+		case 2:
+			Injector::Method::manualMapping(&memory, targetModulePath.data(), static_cast<Injector::Executor::EMethod>(getInjectionMethodFromCMD()), getOptionsFromCMD());
+			break;
+
+		default:
+			break;
+		}
+
+		if (!memory.detatch()) {
+			Injector::logln("failed to detatch from process (%d)", GetLastError());
+		}
 	}
 
 	system("pause");
 	return 0;
 }
 
-void tInjector::log(const char c)
+void Injector::log(const char c)
 {
 	std::cout << c;
 }
 
-void tInjector::log(const char* msg, ...)
+void Injector::log(const char* msg, ...)
 {
 	va_list vaArgs;
 	va_start(vaArgs, msg);
@@ -103,7 +119,7 @@ void tInjector::log(const char* msg, ...)
 	std::cout << str.data();
 }
 
-void tInjector::logln(const char* msg, ...)
+void Injector::logln(const char* msg, ...)
 {
 	va_list vaArgs;
 	va_start(vaArgs, msg);
@@ -112,7 +128,7 @@ void tInjector::logln(const char* msg, ...)
 	std::vsnprintf(str.data(), str.size(), msg, vaArgs);
 	va_end(vaArgs);
 
-	std::cout << str.data() << std::endl;
+	std::cout << "[+] " << str.data() << std::endl;
 }
 
 static const char* getParentProcessName(DWORD th32ParentProcessID)
@@ -138,7 +154,7 @@ static const char* getParentProcessName(DWORD th32ParentProcessID)
 	return "";
 }
 
-DWORD tInjector::helper::getProcessIdByName(const char* processName)
+DWORD Injector::helper::getProcessIdByName(const char* processName)
 {
 	auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (!hSnap) return 0;
@@ -177,12 +193,12 @@ DWORD tInjector::helper::getProcessIdByName(const char* processName)
 	return 0;
 }
 
-DWORD tInjector::helper::getPEHeaderSize(const IMAGE_NT_HEADERS* pNTH)
+DWORD Injector::helper::getPEHeaderSize(const IMAGE_NT_HEADERS* pNTH)
 {
 	return (offsetof(IMAGE_NT_HEADERS, OptionalHeader) + pNTH->FileHeader.SizeOfOptionalHeader + (pNTH->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER)));
 }
 
-bool tInjector::helper::toAbsolutePath(char* path)
+bool Injector::helper::toAbsolutePath(char* path)
 {
 	char absolutePath[MAX_PATH] = { 0 };
 	if (!GetFullPathNameA(path, MAX_PATH, absolutePath, nullptr)) {
@@ -240,23 +256,12 @@ static BYTE Shellcode_ThreadHijack[] =
 };
 #endif
 
-BYTE* tInjector::hijack::getShellcode()
+BYTE* Injector::hijack::getShellcode()
 {
 	return Shellcode_ThreadHijack;
 }
 
-size_t tInjector::hijack::getShellcodeSize()
+size_t Injector::hijack::getShellcodeSize()
 {
 	return tInjector_ARRLEN(Shellcode_ThreadHijack);
-}
-
-bool tInjector::option::erasePEHeader(HANDLE hProcess, PVOID base, size_t peSize)
-{
-	unsigned char zero = 0;
-	if (!WriteProcessMemory(hProcess, base, &zero, peSize, nullptr))
-	{
-		return false;
-	}
-
-	return true;
 }

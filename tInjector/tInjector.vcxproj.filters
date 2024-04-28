@@ -11,10 +11,19 @@
     <ClCompile Include="SetWindowsHookEx.cpp">
       <Filter>Method</Filter>
     </ClCompile>
+    <ClCompile Include="Executor.cpp">
+      <Filter>Util</Filter>
+    </ClCompile>
+    <ClCompile Include="Memory.cpp">
+      <Filter>Util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Method">
       <UniqueIdentifier>{46a70f69-7cb8-404b-beaa-5e363fe4ab7e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Util">
+      <UniqueIdentifier>{3023d9aa-a9b9-4027-8303-cb721d2fc853}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -27,6 +36,12 @@
     </ClInclude>
     <ClInclude Include="SetWindowsHookEx.h">
       <Filter>Method</Filter>
+    </ClInclude>
+    <ClInclude Include="Executor.h">
+      <Filter>Util</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory.h">
+      <Filter>Util</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

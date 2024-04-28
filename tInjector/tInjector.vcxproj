@@ -96,13 +96,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Executor.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Remote_LoadLibrary.cpp" />
     <ClCompile Include="ManualMapping.cpp" />
     <ClCompile Include="SetWindowsHookEx.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Executor.h" />
     <ClInclude Include="main.h" />
+    <ClInclude Include="Memory.h" />
     <ClInclude Include="Remote_LoadLibrary.h" />
     <ClInclude Include="ManualMapping.h" />
     <ClInclude Include="SetWindowsHookEx.h" />

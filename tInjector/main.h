@@ -16,7 +16,14 @@ typedef DWORD32 tDWORD;
 
 #define OPT_ERASE_PE_HEADER 1 << 1
 
-namespace tInjector
+enum class EShellCodeRet
+{
+	SHELLCODE_UNKOWN = 0,
+	SHELLCODE_SUCCESS,
+	SHELLCODE_FAILED
+};
+
+namespace Injector
 {
 	namespace helper
 	{
@@ -25,21 +32,10 @@ namespace tInjector
 		bool toAbsolutePath(char* path);
 	}
 
-	enum class InjectionMethod
-	{
-		CreateRemoteThread = 0,
-		ThreadHijacking
-	};
-
 	namespace hijack
 	{
 		BYTE* getShellcode();
 		size_t getShellcodeSize();
-	}
-
-	namespace option
-	{
-		bool erasePEHeader(HANDLE hProcess, PVOID base, size_t peSize);
 	}
 
 	void log(const char c);

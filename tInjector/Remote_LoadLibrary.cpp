@@ -1,13 +1,7 @@
 #include "Remote_LoadLibrary.h"
+#include "Executor.h"
 
-enum class EShellCodeRet
-{
-	SHELLCODE_UNKOWN = 0,
-	SHELLCODE_SUCCESS,
-	SHELLCODE_FAILED
-};
-
-struct ShellCode_t
+struct TShellCodeParam
 {
 	LPVOID pLoadLibraryA;
 	char path[MAX_PATH];
@@ -26,7 +20,7 @@ struct ShellCode_t
 	return ret;
 }*/
 
-// it's the above function
+// ByteCode Array of the 'ShellCode' function
 #ifdef _WIN64
 static BYTE ShellCode[] =
 {
@@ -99,346 +93,88 @@ static BYTE ShellCode[] = {
 };
 #endif
 
-// Calling LoadLibraryA in target process using Shellcode
-bool tInjector::method::remoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method)
-{
-	LPVOID pShellCodeThreadHijack = nullptr;
-	LPVOID pTargetShellCodeThreadHijack = nullptr;
+static EShellCodeRet fncReadShellCodeStatus(Injector::CMemory* pMemory, LPVOID pParam) {
+	TShellCodeParam scp = { 0 };
+	scp.ret = EShellCodeRet::SHELLCODE_UNKOWN;
 
-#ifdef _WIN64
-	LPVOID pTargetRtlRestoreContextThreadHijack = nullptr;
-#endif
+	while (scp.ret == EShellCodeRet::SHELLCODE_UNKOWN)
+	{
+		if(!pMemory->read(pParam, &scp, sizeof(TShellCodeParam)))
+		{
+			break;
+		}
+
+		Sleep(100);
+	}
+
+	return scp.ret;
+}
+
+bool Injector::Method::remoteLoadLibrary(CMemory* pMemory, const char* targetModulePath, Executor::EMethod method)
+{
+	bool ret = false;
 
 	LPVOID pTargetShellCodeParam = nullptr;
 	LPVOID pTargetShellCode = nullptr;
-	DWORD exitCode = 1;
 
 	char absolutePath[MAX_PATH] = { 0 };
-	strcpy_s(absolutePath, MAX_PATH, TargetModulePath);
+	strcpy_s(absolutePath, MAX_PATH, targetModulePath);
 
-	if (!tInjector::helper::toAbsolutePath(absolutePath)) {
-		tInjector::logln("Failed to get absolute path");
-		return false;
-	}
+	TShellCodeParam scp = { 0 };
+	scp.ret = EShellCodeRet::SHELLCODE_UNKOWN;
 
-	auto pid = tInjector::helper::getProcessIdByName(TargetProcessName);
-	if (!pid)
-	{
-		tInjector::logln("Process not found");
-		return false;
-	}
-
-	auto hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
-	if (!hProcess)
-	{
-		tInjector::logln("OpenProcess failed with code: %d", GetLastError());
-		return false;
+	if (!Injector::helper::toAbsolutePath(absolutePath)) {
+		Injector::logln("Failed to get absolute path");
+		goto free;
 	}
 
 	// Allocate & Write Shellcode Param to Target Process Space
 	{
-		ShellCode_t param = { 0 };
-		param.pLoadLibraryA = LoadLibraryA;
-		strcpy_s(param.path, absolutePath);
+		scp.pLoadLibraryA = LoadLibraryA;
+		strcpy_s(scp.path, absolutePath);
 
-		pTargetShellCodeParam = VirtualAllocEx(hProcess, nullptr, sizeof(ShellCode_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+		pTargetShellCodeParam = pMemory->alloc(sizeof(TShellCodeParam), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		if (!pTargetShellCodeParam)
 		{
-			tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+			Injector::logln("VirtualAllocEx failed with code: %d", GetLastError());
 			goto free;
 		}
 
-		if (!WriteProcessMemory(hProcess, pTargetShellCodeParam, &param, sizeof(ShellCode_t), nullptr))
+		if(!pMemory->write(pTargetShellCodeParam, &scp, sizeof(TShellCodeParam)))
 		{
-			tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+			Injector::logln("WriteProcessMemory failed with code: %d", GetLastError());
 			goto free;
 		}
 	}
 
 	// Allocate & Write Shellcode
 	{
-		pTargetShellCode = VirtualAllocEx(hProcess, NULL, tInjector_ARRLEN(ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		pTargetShellCode = pMemory->alloc(tInjector_ARRLEN(ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if (!pTargetShellCode)
 		{
-			tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+			Injector::logln("VirtualAllocEx failed with code: %d", GetLastError());
 			goto free;
 		}
 
-		if (!WriteProcessMemory(hProcess, pTargetShellCode, ShellCode, tInjector_ARRLEN(ShellCode), NULL))
+		if (!pMemory->write(pTargetShellCode, ShellCode, tInjector_ARRLEN(ShellCode)))
 		{
-			tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+			Injector::logln("WriteProcessMemory failed with code: %d", GetLastError());
 			goto free;
 		}
 	}
 
-	switch (Method)
-	{
-	case InjectionMethod::CreateRemoteThread:
-	{
-		// Execute the Shellcode
-		{
-			auto hRT = CreateRemoteThread(hProcess, nullptr, NULL, reinterpret_cast<LPTHREAD_START_ROUTINE>(pTargetShellCode), pTargetShellCodeParam, NULL, nullptr);
-			if (!hRT)
-			{
-				tInjector::logln("CreateRemoteThread failed with code: %d", GetLastError());
-				goto free;
-			}
-
-			WaitForSingleObject(hRT, INFINITE);
-			GetExitCodeThread(hRT, &exitCode);
-
-			if (!exitCode)
-			{
-				ShellCode_t sc = { 0 };
-				sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
-				while (sc.ret == EShellCodeRet::SHELLCODE_UNKOWN)
-				{
-					if (ReadProcessMemory(hProcess, pTargetShellCodeParam, &sc, sizeof(ShellCode_t), nullptr))
-					{
-						if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
-						{
-							tInjector::logln("Successfully injected module: %s", absolutePath);
-							break;
-						}
-						else if (sc.ret == EShellCodeRet::SHELLCODE_FAILED)
-						{
-							tInjector::logln("Injection failed with error: %d", GetLastError());
-							break;
-						}
-					}
-
-					Sleep(100);
-				}
-			}
-			else
-			{
-				tInjector::logln("Injection failed with error: %d", GetLastError());
-			}
-
-			CloseHandle(hRT);
-		}
-
-		break;
+	// execute shellcode
+	if (!Injector::Executor::autoDetect(pMemory, method, pTargetShellCode, pTargetShellCodeParam, fncReadShellCodeStatus)) {
+		goto free;
 	}
 
-	case InjectionMethod::ThreadHijacking:
-	{
-		auto hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-		if (!hSnap)
-		{
-			tInjector::logln("CreateToolhelp32Snapshot failed");
-			goto free;
-		}
-
-		THREADENTRY32 entry = { 0 };
-		entry.dwSize = sizeof(entry);
-
-		HANDLE hThread = nullptr;
-		if (Thread32First(hSnap, &entry))
-		{
-			do
-			{
-				if (entry.th32OwnerProcessID == pid)
-				{
-					hThread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_SUSPEND_RESUME, FALSE, entry.th32ThreadID);
-					if (hThread) break;
-				}
-			} while (Thread32Next(hSnap, &entry));
-		}
-
-		CloseHandle(hSnap);
-
-		if (!hThread)
-		{
-			tInjector::logln("No Thread found to hijack");
-			goto free;
-		}
-
-		if (SuspendThread(hThread) == -1)
-		{
-			tInjector::logln("SuspendThread failed with code: %d", GetLastError());
-			CloseHandle(hThread);
-			goto free;
-		}
-
-		CONTEXT c = { 0 };
-		c.ContextFlags = CONTEXT_FULL;
-		if (!GetThreadContext(hThread, &c))
-		{
-			tInjector::logln("GetThreadContext failed with code: %d", GetLastError());
-			CloseHandle(hThread);
-			goto free;
-		}
-
-#ifdef _WIN64
-		auto storedRip = c.Rip;
-#else
-		auto storedEip = c.Eip;
-#endif
-
-#ifdef _WIN64
-		{
-			pTargetRtlRestoreContextThreadHijack = VirtualAllocEx(hProcess, nullptr, sizeof(CONTEXT), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-			if (!pTargetRtlRestoreContextThreadHijack)
-			{
-				tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
-				goto free;
-			}
-
-			if (!WriteProcessMemory(hProcess, pTargetRtlRestoreContextThreadHijack, &c, sizeof(CONTEXT), nullptr))
-			{
-				tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
-				goto free;
-			}
-		}
-#endif
-
-		// allocate & write shellcode to hijack the thread
-		{
-			pTargetShellCodeThreadHijack = VirtualAllocEx(hProcess, nullptr, tInjector::hijack::getShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-			if (!pTargetShellCodeThreadHijack)
-			{
-				tInjector::logln("VirtualAllocEx failed with code: %d", GetLastError());
-				goto free;
-			}
-
-			// set up the shellcode
-			pShellCodeThreadHijack = VirtualAlloc(nullptr, tInjector::hijack::getShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-			if (!pShellCodeThreadHijack)
-			{
-				tInjector::logln("VirtualAlloc failed with code: %d", GetLastError());
-				goto free;
-			}
-
-			// copy the shellcode into the buffer
-			memcpy(pShellCodeThreadHijack, tInjector::hijack::getShellcode(), tInjector::hijack::getShellcodeSize());
-
-			// prepare the shellcode
-			{
-#ifdef _WIN64
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x18) = reinterpret_cast<tDWORD>(pTargetShellCode);
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x22) = reinterpret_cast<tDWORD>(pTargetShellCodeParam);
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x2E) = reinterpret_cast<tDWORD>(pTargetRtlRestoreContextThreadHijack);
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x38) = reinterpret_cast<tDWORD>(RtlRestoreContext);
-#else
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x6) = storedEip;
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0xF) = reinterpret_cast<tDWORD>(pTargetShellCode);
-				*reinterpret_cast<tDWORD*>(reinterpret_cast<tDWORD>(pShellCodeThreadHijack) + 0x14) = reinterpret_cast<tDWORD>(pTargetShellCodeParam);
-#endif
-			}
-
-			if (!WriteProcessMemory(hProcess, pTargetShellCodeThreadHijack, pShellCodeThreadHijack, tInjector::hijack::getShellcodeSize(), nullptr))
-			{
-				tInjector::logln("WriteProcessMemory failed with code: %d", GetLastError());
-				goto free;
-			}
-		}
-
-#ifdef _WIN64
-		c.Rip = reinterpret_cast<tDWORD>(pTargetShellCodeThreadHijack);
-#else
-		c.Eip = reinterpret_cast<DWORD>(pTargetShellCodeThreadHijack);
-#endif
-
-		if (!SetThreadContext(hThread, &c))
-		{
-			tInjector::logln("SetThreadContext failed with code: %d", GetLastError());
-
-			if (ResumeThread(hThread) == -1)
-			{
-				tInjector::logln("ResumeThread failed with code: %d", GetLastError());
-			}
-
-			CloseHandle(hThread);
-			goto free;
-		}
-
-		if (ResumeThread(hThread) == -1)
-		{
-			#ifdef _WIN64
-				c.Rip = storedRip;
-			#else
-				c.Eip = storedEip;
-			#endif
-			
-			if (!SetThreadContext(hThread, &c))
-			{
-				tInjector::logln("SetThreadContext failed with code: %d", GetLastError());
-				CloseHandle(hThread);
-				goto free;
-			}
-
-			tInjector::logln("ResumeThread failed with code: %d", GetLastError());
-			CloseHandle(hThread);
-			goto free;
-		}
-
-		ShellCode_t sc = { 0 };
-		sc.ret = EShellCodeRet::SHELLCODE_UNKOWN;
-		while (sc.ret == EShellCodeRet::SHELLCODE_UNKOWN)
-		{
-			if (ReadProcessMemory(hProcess, pTargetShellCodeParam, &sc, sizeof(ShellCode_t), nullptr))
-			{
-				if (sc.ret == EShellCodeRet::SHELLCODE_SUCCESS)
-				{
-					tInjector::logln("Successfully injected module: %s", absolutePath);
-					break;
-				}
-				else if (sc.ret == EShellCodeRet::SHELLCODE_FAILED)
-				{
-					tInjector::logln("Injection failed with error: %d", GetLastError());
-					break;
-				}
-			}
-
-			Sleep(100);
-		}
-
-		CloseHandle(hThread);
-
-		break;
-	}
-
-	default:
-		tInjector::logln("Injection Method is invalid");
-		break;
-	}
+	// success
+	ret = true;
 
 free:
 	// free up allocated memory
-	if (pShellCodeThreadHijack)
-	{
-		VirtualFree(pShellCodeThreadHijack, 0, MEM_RELEASE);
-		pShellCodeThreadHijack = nullptr;
-	}
+	pMemory->free(pTargetShellCodeParam);
+	pMemory->free(pTargetShellCode);
 
-#ifdef _WIN64
-	if (pTargetRtlRestoreContextThreadHijack)
-	{
-		VirtualFree(pTargetRtlRestoreContextThreadHijack, 0, MEM_RELEASE);
-		pTargetRtlRestoreContextThreadHijack = nullptr;
-	}
-#endif
-
-	if (pTargetShellCodeThreadHijack)
-	{
-		VirtualFreeEx(hProcess, pTargetShellCodeThreadHijack, 0, MEM_RELEASE);
-		pTargetShellCodeThreadHijack = nullptr;
-	}
-
-	if (pTargetShellCodeParam)
-	{
-		VirtualFreeEx(hProcess, pTargetShellCodeParam, 0, MEM_RELEASE);
-		pTargetShellCodeParam = nullptr;
-	}
-
-	if (pTargetShellCode)
-	{
-		VirtualFreeEx(hProcess, pTargetShellCode, 0, MEM_RELEASE);
-		pTargetShellCode = nullptr;
-	}
-
-	CloseHandle(hProcess);
-
-	return (exitCode == 0) ? true : false;
+	return ret;
 }

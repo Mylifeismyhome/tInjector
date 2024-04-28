@@ -1,10 +1,12 @@
 #pragma once
 #include "main.h"
+#include "Executor.h"
+#include "Memory.h"
 
-namespace tInjector
+namespace Injector
 {
-	namespace method
+	namespace Method
 	{
-		bool remoteLoadLibrary(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method);
+		bool remoteLoadLibrary(CMemory* pMemory, const char* targetModulePath, Executor::EMethod method);
 	}
 }

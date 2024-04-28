@@ -10,11 +10,13 @@
 #endif
 
 #include "main.h"
+#include "Executor.h"
+#include "Memory.h"
 
-namespace tInjector
+namespace Injector
 {
-	namespace method
+	namespace Method
 	{
-		bool manualMapping(const char* TargetProcessName, const char* TargetModulePath, tInjector::InjectionMethod Method, unsigned m_opt = 0);
+		bool manualMapping(CMemory* pMemory, const char* targetModulePath, Executor::EMethod method, unsigned opt = 0);
 	}
 }

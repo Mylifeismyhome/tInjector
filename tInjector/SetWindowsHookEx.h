@@ -2,9 +2,9 @@
 #include "main.h"
 #undef SetWindowsHookEx
 
-namespace tInjector
+namespace Injector
 {
-	namespace method
+	namespace Method
 	{
 		bool setWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName);
 	}

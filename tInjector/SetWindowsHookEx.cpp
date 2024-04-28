@@ -20,7 +20,6 @@
 * now passing the parameter 'EntryPointName' in 'SetWindowsHookEx' as 'DllEntryPoint'
 * will get resolved by GetProcAddress function
 */
-
 struct TWindowsProc
 {
 	char* targetProcessName;
@@ -82,13 +81,13 @@ VOID CALLBACK CSendMessageCallback(__in  HWND hwnd,
 	isEntryPointExecuted = true;
 }
 
-bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName)
+bool Injector::Method::setWindowsHookEx(const char* TargetProcessName, const char* TargetModulePath, const char* EntryPointName)
 {
 	char absolutePath[MAX_PATH] = { 0 };
 	strcpy_s(absolutePath, MAX_PATH, TargetModulePath);
 
-	if (!tInjector::helper::toAbsolutePath(absolutePath)) {
-		tInjector::logln("Failed to get absolute path");
+	if (!Injector::helper::toAbsolutePath(absolutePath)) {
+		Injector::logln("Failed to get absolute path");
 		return false;
 	}
 
@@ -112,7 +111,7 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 
 	if (!windowsProc->valid)
 	{
-		tInjector::logln("EnumWindowsProc not found a window");
+		Injector::logln("EnumWindowsProc not found a window");
 		goto clean;
 	}
 
@@ -124,7 +123,7 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 	hModule = LoadLibraryExA(absolutePath, NULL, DONT_RESOLVE_DLL_REFERENCES);
 	if (!hModule)
 	{
-		tInjector::logln("LoadLibraryExA failed with code: %d", GetLastError());
+		Injector::logln("LoadLibraryExA failed with code: %d", GetLastError());
 		goto clean;
 	}
 
@@ -136,7 +135,7 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 	pMainEntry = (HOOKPROC)GetProcAddress(hModule, EntryPointName);
 	if (!pMainEntry)
 	{
-		tInjector::logln("'%s' is not exported", EntryPointName);
+		Injector::logln("'%s' is not exported", EntryPointName);
 		goto clean;
 	}
 
@@ -147,7 +146,7 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 	hHooked = SetWindowsHookExA(WH_GETMESSAGE, pMainEntry, hModule, windowsProc->dwThreadId);
 	if (!hHooked)
 	{
-		tInjector::logln("SetWindowsHookExA failed with code: %d", GetLastError());
+		Injector::logln("SetWindowsHookExA failed with code: %d", GetLastError());
 		goto clean;
 	}
 
@@ -168,7 +167,7 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 	*/
 	if (!PostMessage(windowsProc->hWnd, WM_NULL, NULL, NULL))
 	{
-		tInjector::logln("PostMessage failed with code: %d", GetLastError());
+		Injector::logln("PostMessage failed with code: %d", GetLastError());
 		goto clean;
 	}
 
@@ -186,13 +185,13 @@ bool tInjector::method::setWindowsHookEx(const char* TargetProcessName, const ch
 	*/
 	if (!UnhookWindowsHookEx(hHooked))
 	{
-		tInjector::logln("UnhookWindowsHookEx failed with code: %d", GetLastError());
+		Injector::logln("UnhookWindowsHookEx failed with code: %d", GetLastError());
 	}
 
 clean:
 	if (hModule && !FreeLibrary(hModule))
 	{
-		tInjector::logln("FreeLibrary failed with code: %d", GetLastError());
+		Injector::logln("FreeLibrary failed with code: %d", GetLastError());
 	}
 
 	delete windowsProc;
