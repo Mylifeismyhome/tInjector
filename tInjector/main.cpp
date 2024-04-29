@@ -234,7 +234,7 @@ static BYTE Shellcode_ThreadHijack[] =
 #else
 static BYTE Shellcode_ThreadHijack[] =
 {
-	// create space for return value
+	// create space for pointer of shellcode params
 	0x83, 0xEC, 0x4,												// sub esp, 0x4
 	0xc7, 0x04, 0x24, 0x00, 0x00, 0x00, 0x00,						// push eip on stack
 
