@@ -25,7 +25,7 @@ bool Injector::Executor::createRemoteThread(CMemory* pMemory, LPVOID ptrFunc, LP
 	auto hRT = pMemory->createRemoteThread(ptrFunc, ptrParam, NULL, NULL);
 	if (!hRT)
 	{
-		Injector::logln("CreateRemoteThread failed with code: %d", GetLastError());
+		Injector::logln("createRemoteThread failed (%d)", pMemory->getLastError());
 		goto free;
 	}
 
@@ -83,7 +83,7 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
 	if (!hSnap)
 	{
-		Injector::logln("CreateToolhelp32Snapshot failed");
+		Injector::logln("CreateToolhelp32Snapshot failed (%d)", GetLastError());
 		goto free;
 	}
 
@@ -103,19 +103,19 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 
 	if (!hThread)
 	{
-		Injector::logln("No Thread found to hijack");
+		Injector::logln("no hijackable thread found", GetLastError());
 		goto free;
 	}
 
 	if (SuspendThread(hThread) == -1)
 	{
-		Injector::logln("SuspendThread failed with code: %d", GetLastError());
+		Injector::logln("SuspendThread failed (%d)", GetLastError());
 		goto free;
 	}
 
 	if (!GetThreadContext(hThread, &c))
 	{
-		Injector::logln("GetThreadContext failed with code: %d", GetLastError());
+		Injector::logln("GetThreadContext failed (%d)", GetLastError());
 		goto free;
 	}
 
@@ -130,7 +130,7 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 		pTargetShellCodeThreadHijack = pMemory->alloc(Injector::hijack::getShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if (!pTargetShellCodeThreadHijack)
 		{
-			Injector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
@@ -138,7 +138,7 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 		pShellCodeThreadHijack = VirtualAlloc(nullptr, Injector::hijack::getShellcodeSize(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		if (!pShellCodeThreadHijack)
 		{
-			Injector::logln("VirtualAlloc failed with code: %d", GetLastError());
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
@@ -161,7 +161,7 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 
 		if(!pMemory->write(pTargetShellCodeThreadHijack, pShellCodeThreadHijack, Injector::hijack::getShellcodeSize()))
 		{
-			Injector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 	}
@@ -174,11 +174,11 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 
 	if (!SetThreadContext(hThread, &c))
 	{
-		Injector::logln("SetThreadContext failed with code: %d", GetLastError());
+		Injector::logln("SetThreadContext failed (%d)", GetLastError());
 
 		if (ResumeThread(hThread) == -1)
 		{
-			Injector::logln("ResumeThread failed with code: %d", GetLastError());
+			Injector::logln("ResumeThread failed (%d)", GetLastError());
 		}
 
 		goto free;
@@ -194,11 +194,11 @@ bool Injector::Executor::threadHijacking(CMemory* pMemory, LPVOID ptrFunc, LPVOI
 
 		if (!SetThreadContext(hThread, &c))
 		{
-			Injector::logln("SetThreadContext failed with code: %d", GetLastError());
+			Injector::logln("SetThreadContext failed (%d)", GetLastError());
 			goto free;
 		}
 
-		Injector::logln("ResumeThread failed with code: %d", GetLastError());
+		Injector::logln("ResumeThread failed (%d)", GetLastError());
 		goto free;
 	}
 

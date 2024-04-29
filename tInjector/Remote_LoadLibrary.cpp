@@ -124,7 +124,7 @@ bool Injector::Method::remoteLoadLibrary(CMemory* pMemory, const char* targetMod
 	scp.ret = EShellCodeRet::SHELLCODE_UNKOWN;
 
 	if (!Injector::helper::toAbsolutePath(absolutePath)) {
-		Injector::logln("Failed to get absolute path");
+		Injector::logln("failed to get absolute path");
 		goto free;
 	}
 
@@ -136,13 +136,13 @@ bool Injector::Method::remoteLoadLibrary(CMemory* pMemory, const char* targetMod
 		pTargetShellCodeParam = pMemory->alloc(sizeof(TShellCodeParam), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		if (!pTargetShellCodeParam)
 		{
-			Injector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
 		if(!pMemory->write(pTargetShellCodeParam, &scp, sizeof(TShellCodeParam)))
 		{
-			Injector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 	}
@@ -152,13 +152,13 @@ bool Injector::Method::remoteLoadLibrary(CMemory* pMemory, const char* targetMod
 		pTargetShellCode = pMemory->alloc(tInjector_ARRLEN(ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if (!pTargetShellCode)
 		{
-			Injector::logln("VirtualAllocEx failed with code: %d", GetLastError());
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
 		if (!pMemory->write(pTargetShellCode, ShellCode, tInjector_ARRLEN(ShellCode)))
 		{
-			Injector::logln("WriteProcessMemory failed with code: %d", GetLastError());
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 	}

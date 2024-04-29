@@ -40,6 +40,11 @@ BOOL Injector::CMemory::free(LPVOID pAddress)
 	return FALSE;
 }
 
+DWORD Injector::CMemory::getLastError()
+{
+	return 0;
+}
+
 HANDLE Injector::CMemory::createRemoteThread(LPVOID lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId)
 {
 	return FALSE;
@@ -72,6 +77,11 @@ LPVOID Injector::CWinApiMemory::alloc(size_t bufferSize, DWORD type, DWORD prote
 BOOL Injector::CWinApiMemory::free(LPVOID pAddress)
 {
 	return VirtualFreeEx(hProcess, pAddress, 0, MEM_RELEASE);
+}
+
+DWORD Injector::CWinApiMemory::getLastError()
+{
+	return GetLastError();
 }
 
 HANDLE Injector::CWinApiMemory::createRemoteThread(LPVOID lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId)

@@ -682,14 +682,14 @@ bool Injector::Method::manualMapping(CMemory* pMemory, const char* targetModuleP
 		pMappedModule = pMemory->alloc(ntheader->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if (!pMappedModule)
 		{
-			Injector::logln("VirtualAllocEx failed");
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
 		// write header first
 		if(!pMemory->write(pMappedModule, pModule, Injector::helper::getPEHeaderSize(ntheader)))
 		{
-			Injector::logln("WriteProcessMemory failed");
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
@@ -701,7 +701,7 @@ bool Injector::Method::manualMapping(CMemory* pMemory, const char* targetModuleP
 			{
 				if(!pMemory->write(reinterpret_cast<LPVOID>(reinterpret_cast<tDWORD>(pMappedModule) + pSectionHeader->VirtualAddress), pModule + pSectionHeader->PointerToRawData, pSectionHeader->SizeOfRawData))
 				{
-					Injector::logln("WriteProcessMemory failed");
+					Injector::logln("write failed (%d)", pMemory->getLastError());
 					goto free;
 				}
 			}
@@ -717,13 +717,13 @@ bool Injector::Method::manualMapping(CMemory* pMemory, const char* targetModuleP
 		pTargetShellCodeParam = pMemory->alloc(sizeof(TShellCodeParam), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		if (!pTargetShellCodeParam)
 		{
-			Injector::logln("VirtualAllocEx failed");
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
 		if(!pMemory->write(pTargetShellCodeParam, &scp, sizeof(TShellCodeParam)))
 		{
-			Injector::logln("WriteProcessMemory failed");
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 	}
@@ -733,13 +733,13 @@ bool Injector::Method::manualMapping(CMemory* pMemory, const char* targetModuleP
 		pTargetShellCode = pMemory->alloc(tInjector_ARRLEN(ShellCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 		if (!pTargetShellCode)
 		{
-			Injector::logln("VirtualAllocEx failed");
+			Injector::logln("alloc failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
 		if(!pMemory->write(pTargetShellCode, ShellCode, tInjector_ARRLEN(ShellCode)))
 		{
-			Injector::logln("WriteProcessMemory failed");
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 	}
@@ -754,11 +754,11 @@ bool Injector::Method::manualMapping(CMemory* pMemory, const char* targetModuleP
 		unsigned char zero = 0;
 		if(!pMemory->write(pMappedModule, &zero, Injector::helper::getPEHeaderSize(ntheader)))
 		{
-			Injector::logln("failed to remove pe header");
+			Injector::logln("write failed (%d)", pMemory->getLastError());
 			goto free;
 		}
 
-		Injector::logln("removed pe header");
+		Injector::logln("pe header removed");
 	}
 
 	// success
